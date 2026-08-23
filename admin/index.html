@@ -3,11 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Admin Dashboard — Aitzaz Ali Portfolio</title>
-<link rel="icon" href="../favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
-<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<title>Admin Dashboard — Aizaz Ali Portfolio</title>
+<link rel="icon" href="../favicon.png">
+<link rel="apple-touch-icon" href="../favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../css/style.css" />
@@ -44,12 +42,13 @@
 <div class="admin-dashboard" id="adminApp" style="display:none;">
   <aside class="admin-sidebar">
     <div class="sidebar-header">
-      <h2>Aitzaz Ali</h2>
+      <h2>Aizaz Ali</h2>
       <span class="sidebar-role">Admin<span class="status-dot-live"></span></span>
     </div>
 
     <nav class="sidebar-nav">
       <button class="nav-item active" data-tab="dashboard">Dashboard</button>
+      <button class="nav-item" data-tab="analytics">Analytics</button>
       <button class="nav-item" data-tab="profile">Profile</button>
       <button class="nav-item" data-tab="projects">Projects</button>
       <button class="nav-item" data-tab="skill_categories">Skills</button>
@@ -130,6 +129,16 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="../js/supabaseClient.js"></script>
+<script>
+  // Dynamic favicon — same custom icon set from the Settings tab applies here too.
+  supabaseClient.from("settings").select("value").eq("key", "favicon_url").maybeSingle()
+    .then(({ data }) => {
+      if (data?.value) {
+        document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach(l => { l.href = data.value; });
+      }
+    })
+    .catch(() => { /* ignore — static favicon files still apply */ });
+</script>
 <script src="js/admin.js"></script>
 </body>
 </html>

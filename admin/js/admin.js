@@ -518,8 +518,437 @@ function inferSchemaFromRow(row) {
 }
 
 // ==========================================
-// GENERIC TAB RENDERER
+// ANALYTICS TAB — simple overview built entirely from your own Supabase
+// data (content counts, messages, activity log). No external setup needed.
 // ==========================================
+function computeTrend(current, previous) {
+  if (!previous) return { pct: current > 0 ? 100 : 0, up: true };
+  const pct = ((current - previous) / previous) * 100;
+  return { pct: Math.round(Math.abs(pct)), up: pct >= 0 };
+}
+
+// Simple area+line chart from an array of numeric values.
+function buildAreaChartSVG(values, labels, color) {
+  const w = 640, h = 180, padX = 12, bottomPad = 26, topPad = 14;
+  const max = Math.max(1, ...values);
+  const stepX = values.length > 1 ? (w - padX * 2) / (values.length - 1) : 0;
+  const points = values.map((v, i) => {
+    const x = padX + i * stepX;
+    const y = h - bottomPad - (v / max) * (h - bottomPad - topPad);
+    return [x, y];
+  });
+  const linePath = points.map((p, i) => (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const areaPath = `${linePath} L ${points[points.length - 1][0].toFixed(1)},${h - bottomPad} L ${points[0][0].toFixed(1)},${h - bottomPad} Z`;
+  const gradId = "areaGrad" + Math.random().toString(36).slice(2, 8);
+  const dots = points.map((p, i) => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3" fill="${color}"><title>${esc(labels[i])}: ${values[i]}</title></circle>`).join("");
+  const showEvery = Math.max(1, Math.ceil(values.length / 7));
+  const xLabels = points.map((p, i) => (i % showEvery === 0 || i === points.length - 1)
+    ? `<text x="${p[0].toFixed(1)}" y="${h - 8}" font-size="9" fill="var(--text-faint)" text-anchor="middle" font-family="var(--font-mono)">${esc(labels[i])}</text>`
+    : "").join("");
+  return `<svg viewBox="0 0 ${w} ${h}" class="chart-svg">
+    <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${areaPath}" fill="url(#${gradId})" stroke="none"/>
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2"/>
+    ${dots}
+    ${xLabels}
+  </svg>`;
+}
+
+// Simple donut chart from [{label, value, color}] segments.
+function buildDonutSVG(segments, size = 140, strokeWidth = 18) {
+  const total = segments.reduce((s, x) => s + x.value, 0);
+  const r = (size - strokeWidth) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  let cumulative = 0;
+  const arcs = total === 0 ? "" : segments.map(seg => {
+    const frac = seg.value / total;
+    const dash = frac * circumference;
+    const gap = circumference - dash;
+    const rotation = (cumulative / total) * 360 - 90;
+    cumulative += seg.value;
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}" transform="rotate(${rotation.toFixed(1)} ${cx} ${cy})"><title>${esc(seg.label)}: ${seg.value}</title></circle>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="${strokeWidth}"/>
+    ${arcs}
+    <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-family="var(--font-display)" font-size="22" font-weight="600" fill="var(--text)">${total}</text>
+    <text x="${cx}" y="${cy + 16}" text-anchor="middle" font-family="var(--font-mono)" font-size="9" fill="var(--text-muted)">total</text>
+  </svg>`;
+}
+
+async function renderAnalyticsTab() {
+  const pageTitle = document.getElementById("pageTitle");
+  pageTitle.textContent = "Analytics";
+  const content = document.getElementById("tabContent");
+  content.innerHTML = renderSkeleton();
+
+  const now = new Date();
+  const since7 = new Date(now); since7.setDate(now.getDate() - 7);
+  const since14 = new Date(now); since14.setDate(now.getDate() - 14);
+
+  const tableNames = ["projects", "skill_categories", "experience", "education", "certifications", "testimonials", "social_links"];
+  const tableLabels = { projects: "Projects", skill_categories: "Skills", experience: "Experience", education: "Education", certifications: "Certifications", testimonials: "Testimonials", social_links: "Social Links" };
+
+  const [countsRes, activityRes, messagesRes] = await Promise.all([
+    Promise.all(tableNames.map(t => supabaseClient.from(t).select("id"))),
+    supabaseClient.from("activity_log").select("id, action, table_name, description, created_at").order("created_at", { ascending: false }).limit(300),
+    supabaseClient.from("contact_messages").select("id, created_at, is_read"),
+  ]);
+
+  const contentBreakdown = tableNames.map((t, i) => ({ label: tableLabels[t], value: countsRes[i].data?.length || 0 }));
+  const totalContent = contentBreakdown.reduce((s, c) => s + c.value, 0);
+
+  const activity = activityRes.data || [];
+  const messages = messagesRes.data || [];
+
+  const dayBuckets = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now); d.setDate(now.getDate() - i); d.setHours(0, 0, 0, 0);
+    dayBuckets.push({ date: d, label: d.toLocaleDateString("en-US", { day: "numeric", month: "short" }), count: 0 });
+  }
+  activity.forEach(a => {
+    const d = new Date(a.created_at);
+    const idx = dayBuckets.findIndex(b => d >= b.date && d.getTime() < b.date.getTime() + 86400000);
+    if (idx !== -1) dayBuckets[idx].count++;
+  });
+
+  const activityLast7 = activity.filter(a => new Date(a.created_at) >= since7).length;
+  const activityPrev7 = activity.filter(a => { const d = new Date(a.created_at); return d >= since14 && d < since7; }).length;
+  const activityTrend = computeTrend(activityLast7, activityPrev7);
+
+  const unreadCount = messages.filter(m => m.is_read === false).length;
+  const readCount = messages.length - unreadCount;
+
+  const lineChart = buildAreaChartSVG(dayBuckets.map(b => b.count), dayBuckets.map(b => b.label), "#e6394f");
+  const donutChart = buildDonutSVG([
+    { label: "Unread", value: unreadCount, color: "#e6394f" },
+    { label: "Read", value: readCount, color: "#4f8dff" },
+  ]);
+
+  const maxBreakdown = Math.max(1, ...contentBreakdown.map(c => c.value));
+  const barListHtml = [...contentBreakdown].sort((a, b) => b.value - a.value).map(c => `
+    <div class="analytics-bar-row">
+      <span class="analytics-bar-label">${esc(c.label)}</span>
+      <div class="analytics-bar-track"><div class="analytics-bar-fill" style="width:${(c.value / maxBreakdown * 100).toFixed(1)}%"></div></div>
+      <span class="analytics-bar-value">${c.value}</span>
+    </div>`).join("");
+
+  const recentActivity = activity.slice(0, 8).map(a => `
+    <div class="activity-feed-row">
+      <span class="activity-feed-dot"></span>
+      <div class="activity-feed-body">
+        <span class="activity-feed-text"><strong>${esc(a.action || "")}</strong>${a.table_name ? " in " + esc(tableLabels[a.table_name] || a.table_name) : ""}${a.description ? " — " + esc(a.description) : ""}</span>
+        <span class="activity-feed-time">${esc(timeAgo(a.created_at))}</span>
+      </div>
+    </div>`).join("") || `<p style="color:var(--text-muted);text-align:center;padding:1.5rem;">No activity recorded yet.</p>`;
+
+  content.innerHTML = `
+    <p class="dash-subtitle">A simple overview of your content and messages — built from your own data.</p>
+
+    <div class="analytics-stats-grid">
+      <div class="analytics-stat-card">
+        <span class="analytics-stat-label">Total Content Items</span>
+        <span class="analytics-stat-value">${totalContent}</span>
+      </div>
+      <div class="analytics-stat-card">
+        <span class="analytics-stat-label">Total Messages</span>
+        <span class="analytics-stat-value">${messages.length}</span>
+      </div>
+      <div class="analytics-stat-card">
+        <span class="analytics-stat-label">Unread Messages</span>
+        <span class="analytics-stat-value">${unreadCount}</span>
+      </div>
+      <div class="analytics-stat-card">
+        <span class="analytics-stat-label">Activity (7d)</span>
+        <span class="analytics-stat-value">${activityLast7}</span>
+        <span class="analytics-trend ${activityTrend.up ? "trend-up" : "trend-down"}">${activityTrend.up ? "▲" : "▼"} ${activityTrend.pct}% vs prior 7d</span>
+      </div>
+    </div>
+
+    <div class="analytics-grid">
+      <div class="analytics-panel analytics-panel-wide">
+        <h3 class="analytics-panel-title">Activity — last 14 days</h3>
+        <div class="chart-wrap">${lineChart}</div>
+      </div>
+      <div class="analytics-panel">
+        <h3 class="analytics-panel-title">Messages read vs unread</h3>
+        <div class="donut-wrap">
+          ${donutChart}
+          <div class="donut-legend">
+            <span><i style="background:#e6394f"></i> Unread (${unreadCount})</span>
+            <span><i style="background:#4f8dff"></i> Read (${readCount})</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="analytics-grid">
+      <div class="analytics-panel">
+        <h3 class="analytics-panel-title">Content breakdown</h3>
+        <div class="analytics-bar-list">${barListHtml}</div>
+      </div>
+      <div class="analytics-panel">
+        <h3 class="analytics-panel-title">Recent activity</h3>
+        <div class="activity-feed">${recentActivity}</div>
+      </div>
+    </div>
+  `;
+}
+
+
+async function getSetting(key) {
+  const { data } = await supabaseClient.from("settings").select("value").eq("key", key).maybeSingle();
+  return data?.value || null;
+}
+
+async function upsertSetting(key, value) {
+  const { data: existing } = await supabaseClient.from("settings").select("id").eq("key", key).maybeSingle();
+  if (existing) {
+    return supabaseClient.from("settings").update({ value }).eq("id", existing.id);
+  }
+  return supabaseClient.from("settings").insert({ key, value });
+}
+
+function clamp(val, min, max) {
+  return Math.min(Math.max(val, min), max);
+}
+
+async function renderSettingsTab() {
+  const pageTitle = document.getElementById("pageTitle");
+  pageTitle.textContent = "Settings";
+  const content = document.getElementById("tabContent");
+  content.innerHTML = renderSkeleton();
+
+  const [{ data, error }, currentFavicon] = await Promise.all([
+    supabaseClient.from("settings").select("*").order("key", { ascending: true }),
+    getSetting("favicon_url"),
+  ]);
+
+  if (error) {
+    content.innerHTML = `<p style="color:var(--accent);">Error loading data: ${esc(error.message)}</p>`;
+    return;
+  }
+
+  content.innerHTML = `
+    <div class="favicon-card">
+      <h3>Site Icon (Favicon)</h3>
+      <p class="favicon-hint">This is the small icon shown in the browser tab and bookmarks. Upload and
+      crop a new one any time — it updates on the live site automatically, no code changes needed.</p>
+      <div class="favicon-row">
+        <div class="favicon-current">
+          <span class="favicon-current-label">Current</span>
+          <img id="faviconCurrentPreview" src="${esc(currentFavicon || "../favicon.ico")}" alt="Current favicon" onerror="this.style.opacity=0.3" />
+        </div>
+
+        <div class="favicon-crop-area" id="faviconCropArea" style="display:none;">
+          <div class="favicon-crop-frame" id="faviconCropFrame">
+            <img id="faviconCropImg" draggable="false" alt="" />
+          </div>
+          <input type="range" id="faviconZoom" min="1" max="3" step="0.01" value="1" />
+          <div class="favicon-crop-actions">
+            <button type="button" class="btn-primary" id="faviconSaveBtn" style="width:auto;">Save Icon</button>
+            <button type="button" class="btn-secondary" id="faviconCancelBtn" style="width:auto;">Cancel</button>
+          </div>
+        </div>
+
+        <div class="favicon-upload-actions" id="faviconUploadActions">
+          <input type="file" id="faviconFileInput" accept="image/*" style="display:none;" />
+          <button type="button" class="btn-secondary" id="faviconChooseBtn" style="width:auto;">Change Icon</button>
+          <p class="favicon-sub-hint">Drag to reposition, use the slider to zoom, once a photo is chosen.</p>
+        </div>
+      </div>
+      <p class="form-status" id="faviconStatus"></p>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2>Other Settings (${data.length})</h2>
+      <div style="display:flex;gap:0.6rem;">
+        <button class="btn-secondary" id="exportBtn" style="width:auto;">Export CSV</button>
+        <button class="btn-primary" id="addBtn">+ Add New</button>
+      </div>
+    </div>
+    <div class="bulk-bar" id="bulkBar" style="display:none;">
+      <button class="btn-action danger" id="bulkDeleteBtn">Delete selected (<span id="bulkCount">0</span>)</button>
+      <button class="btn-secondary" id="bulkClearBtn" style="width:auto;">Clear selection</button>
+    </div>
+    <div id="tableWrap" style="overflow-x:auto;"></div>
+  `;
+
+  const config = TABLES.settings;
+  document.getElementById("exportBtn").addEventListener("click", () => exportToCSV(data, "settings.csv"));
+  document.getElementById("addBtn").addEventListener("click", () => openAddModal("settings"));
+  renderTableData("settings", data, config);
+
+  const searchBox = document.getElementById("searchBox");
+  searchBox.style.display = "inline-block";
+  searchBox.value = "";
+  searchBox.placeholder = "Search settings...";
+  searchBox.oninput = debounce(() => {
+    const term = searchBox.value.trim().toLowerCase();
+    const filtered = !term ? data : data.filter(row =>
+      Object.values(row).some(v => v !== null && v !== undefined && String(v).toLowerCase().includes(term))
+    );
+    renderTableData("settings", filtered, config);
+  }, 250);
+
+  setupFaviconCropper();
+}
+
+function setupFaviconCropper() {
+  const frameSize = 220;
+  const chooseBtn = document.getElementById("faviconChooseBtn");
+  const cancelBtn = document.getElementById("faviconCancelBtn");
+  const saveBtn = document.getElementById("faviconSaveBtn");
+  const fileInput = document.getElementById("faviconFileInput");
+  const cropArea = document.getElementById("faviconCropArea");
+  const cropFrame = document.getElementById("faviconCropFrame");
+  const cropImg = document.getElementById("faviconCropImg");
+  const zoomSlider = document.getElementById("faviconZoom");
+  const status = document.getElementById("faviconStatus");
+  const currentPreview = document.getElementById("faviconCurrentPreview");
+
+  let state = null; // { naturalW, naturalH, baseScale, zoom, offsetX, offsetY }
+
+  function applyTransform() {
+    const totalScale = state.baseScale * state.zoom;
+    const dispW = state.naturalW * totalScale;
+    const dispH = state.naturalH * totalScale;
+    cropImg.style.width = `${dispW}px`;
+    cropImg.style.height = `${dispH}px`;
+    cropImg.style.left = `${state.offsetX}px`;
+    cropImg.style.top = `${state.offsetY}px`;
+  }
+
+  function clampOffsets() {
+    const totalScale = state.baseScale * state.zoom;
+    const dispW = state.naturalW * totalScale;
+    const dispH = state.naturalH * totalScale;
+    state.offsetX = clamp(state.offsetX, frameSize - dispW, 0);
+    state.offsetY = clamp(state.offsetY, frameSize - dispH, 0);
+  }
+
+  chooseBtn.addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { showToast("Image too large — max 8MB.", "error"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const baseScale = Math.max(frameSize / img.naturalWidth, frameSize / img.naturalHeight);
+        state = {
+          naturalW: img.naturalWidth,
+          naturalH: img.naturalHeight,
+          baseScale,
+          zoom: 1,
+          offsetX: (frameSize - img.naturalWidth * baseScale) / 2,
+          offsetY: (frameSize - img.naturalHeight * baseScale) / 2,
+        };
+        cropImg.src = reader.result;
+        zoomSlider.value = 1;
+        cropArea.style.display = "block";
+        applyTransform();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  zoomSlider.addEventListener("input", () => {
+    if (!state) return;
+    state.zoom = Number(zoomSlider.value);
+    clampOffsets();
+    applyTransform();
+  });
+
+  let dragging = false, dragStartX = 0, dragStartY = 0, startOffsetX = 0, startOffsetY = 0;
+
+  function dragStart(clientX, clientY) {
+    if (!state) return;
+    dragging = true;
+    dragStartX = clientX;
+    dragStartY = clientY;
+    startOffsetX = state.offsetX;
+    startOffsetY = state.offsetY;
+  }
+  function dragMove(clientX, clientY) {
+    if (!dragging || !state) return;
+    state.offsetX = startOffsetX + (clientX - dragStartX);
+    state.offsetY = startOffsetY + (clientY - dragStartY);
+    clampOffsets();
+    applyTransform();
+  }
+  function dragEnd() { dragging = false; }
+
+  cropFrame.addEventListener("mousedown", (e) => dragStart(e.clientX, e.clientY));
+  document.addEventListener("mousemove", (e) => dragMove(e.clientX, e.clientY));
+  document.addEventListener("mouseup", dragEnd);
+  cropFrame.addEventListener("touchstart", (e) => dragStart(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  cropFrame.addEventListener("touchmove", (e) => dragMove(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+  cropFrame.addEventListener("touchend", dragEnd);
+
+  cancelBtn.addEventListener("click", () => {
+    cropArea.style.display = "none";
+    fileInput.value = "";
+    state = null;
+  });
+
+  saveBtn.addEventListener("click", () => {
+    if (!state) return;
+    const totalScale = state.baseScale * state.zoom;
+    const sx = -state.offsetX / totalScale;
+    const sy = -state.offsetY / totalScale;
+    const sw = frameSize / totalScale;
+    const sh = frameSize / totalScale;
+
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = 512;
+    outCanvas.height = 512;
+    const ctx = outCanvas.getContext("2d");
+    ctx.drawImage(cropImg, sx, sy, sw, sh, 0, 0, 512, 512);
+
+    outCanvas.toBlob(async (blob) => {
+      if (!blob) { showToast("Couldn't process that image.", "error"); return; }
+      status.textContent = "Uploading…";
+      saveBtn.disabled = true;
+      try {
+        const path = "branding/favicon.png";
+        const { error: upErr } = await supabaseClient.storage
+          .from(STORAGE_BUCKET)
+          .upload(path, blob, { upsert: true, contentType: "image/png" });
+        if (upErr) throw new Error(upErr.message);
+
+        const { data: pub } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        const versionedUrl = `${pub.publicUrl}?v=${Date.now()}`;
+
+        const { error: setErr } = await upsertSetting("favicon_url", versionedUrl);
+        if (setErr) throw new Error(setErr.message);
+
+        currentPreview.src = versionedUrl;
+        currentPreview.style.opacity = 1;
+        cropArea.style.display = "none";
+        fileInput.value = "";
+        state = null;
+        status.textContent = "Saved! It may take a minute to appear for visitors.";
+        showToast("Favicon updated.");
+        logActivity("Updated", "settings", "favicon_url");
+      } catch (err) {
+        status.textContent = "";
+        showToast("Error: " + err.message, "error");
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }, "image/png");
+  });
+}
+
+
 const TABLES = {
   profile: { label: "Profile", readOnly: false },
   projects: { label: "Projects", orderBy: "sort_order", ascending: true, readOnly: false },
@@ -541,8 +970,10 @@ async function renderTab(tabName) {
   selectedIds = new Set();
 
   if (tabName === "dashboard") { searchBox.style.display = "none"; renderDashboard(); return; }
+  if (tabName === "analytics") { searchBox.style.display = "none"; renderAnalyticsTab(); return; }
   if (tabName === "profile") { searchBox.style.display = "none"; renderProfileTab(); return; }
   if (tabName === "skill_categories") { searchBox.style.display = "none"; renderSkillCategoriesTab(); return; }
+  if (tabName === "settings") { searchBox.style.display = "none"; renderSettingsTab(); return; }
 
   const config = TABLES[tabName];
   const content = document.getElementById("tabContent");
@@ -1049,11 +1480,12 @@ function renderField(f, row) {
         <label>${esc(f.label)}</label>
         <input type="file" name="${esc(f.name)}__file" accept="${esc(f.accept || "image/*,video/*")}" data-target="${esc(f.name)}" />
         ${value ? `
-          <div class="file-current-row">
+          <div class="file-current-row" data-current-row="${esc(f.name)}">
             ${isImg ? `<img class="file-preview-img" src="${esc(sanitizeUrl(value))}" alt="" onerror="this.style.display='none'" />` : ""}
             <small class="file-current">Current: <a href="${esc(sanitizeUrl(value))}" target="_blank" rel="noopener">view file</a></small>
+            <button type="button" class="file-remove-btn" data-remove-target="${esc(f.name)}">Remove</button>
           </div>` : ""}
-        <input type="hidden" name="${esc(f.name)}" value="${esc(value || "")}" />
+        <input type="hidden" name="${esc(f.name)}" value="${esc(value || "")}" data-hidden-target="${esc(f.name)}" />
       </div>`;
   }
 
@@ -1106,6 +1538,21 @@ function wireFileInputs(container) {
         img.src = URL.createObjectURL(file);
         label.after(img);
       }
+    });
+  });
+
+  // "Remove" button — clears the stored file so saving the form removes
+  // the image/PDF from this field (the field becomes empty, nothing is
+  // deleted from Storage, it's just no longer referenced by this record).
+  container.querySelectorAll(".file-remove-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const targetName = btn.dataset.removeTarget;
+      const hiddenInput = container.querySelector(`input[type="hidden"][data-hidden-target="${targetName}"]`);
+      const fileInput = container.querySelector(`input[type="file"][data-target="${targetName}"]`);
+      const row = container.querySelector(`[data-current-row="${targetName}"]`);
+      if (hiddenInput) hiddenInput.value = "";
+      if (fileInput) fileInput.value = "";
+      if (row) row.remove();
     });
   });
 }
