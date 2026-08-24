@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Aizaz Ali — Portfolio | QA Engineer | Full Stack Dev & Automation Enthusiast</title>
-<meta name="description" content="Aizaz Ali — QA Engineer with hands-on testing and automation experience, passionate about Full Stack Development and AI-driven automation. Explore my projects and skills." />
-<meta name="keywords" content="Aizaz Ali, Aizaz Ali portfolio, QA Engineer, QA Testing, Automation, Full Stack Development, Aizaz Ali QA" />
-<meta name="author" content="Aizaz Ali" />
+<title>Syed Aizaz Ali — Portfolio | QA Engineer | Full Stack Dev & Automation Enthusiast</title>
+<meta name="description" content="Syed Aizaz Ali — QA Engineer with hands-on testing and automation experience, passionate about Full Stack Development and AI-driven automation. Explore my projects and skills." />
+<meta name="keywords" content="Syed Aizaz Ali, Syed Aizaz Ali portfolio, QA Engineer, QA Testing, Automation, Full Stack Development, Syed Aizaz Ali QA" />
+<meta name="author" content="Syed Aizaz Ali" />
 <meta name="robots" content="index, follow" />
 
 <!-- Canonical URL — tells Google this is the single true version of the page -->
@@ -18,15 +18,15 @@
 
 <!-- Open Graph / social share preview -->
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="Aizaz Ali" />
-<meta property="og:title" content="Aizaz Ali — Portfolio" />
+<meta property="og:site_name" content="Syed Aizaz Ali" />
+<meta property="og:title" content="Syed Aizaz Ali — Portfolio" />
 <meta property="og:description" content="QA Engineer with hands-on testing and automation experience, passionate about Full Stack Development and AI-driven automation." />
 <meta property="og:image" content="https://syedaizazali.netlify.app/favicon.png" />
 <meta property="og:url" content="https://syedaizazali.netlify.app/" />
 
 <!-- Twitter card -->
 <meta name="twitter:card" content="summary" />
-<meta name="twitter:title" content="Aizaz Ali — Portfolio" />
+<meta name="twitter:title" content="Syed Aizaz Ali — Portfolio" />
 <meta name="twitter:description" content="QA Engineer passionate about Full Stack Development and AI-driven automation." />
 <meta name="twitter:image" content="https://syedaizazali.netlify.app/favicon.png" />
 
@@ -39,7 +39,7 @@
 {
   "@context": "https://schema.org",
   "@type": "Person",
-  "name": "Aizaz Ali",
+  "name": "Syed Aizaz Ali",
   "jobTitle": "QA Engineer",
   "description": "QA Engineer with hands-on testing and automation experience, passionate about Full Stack Development and AI-driven automation.",
   "url": "https://syedaizazali.netlify.app/"
@@ -57,6 +57,11 @@
 </script>
 </head>
 <body>
+<script>
+  try {
+    if (localStorage.getItem("theme") === "light") document.body.classList.add("light-theme");
+  } catch (e) {}
+</script>
 <canvas id="starfield"></canvas>
 
 <div class="mascot" id="astronautMascot" aria-hidden="true">
@@ -83,7 +88,7 @@
       <li><a href="#skills">Skills</a></li>
       <li><a href="#projects">Projects</a></li>
     </ul>
-    <span class="logo" id="navLogo">AA<span class="dot">.</span></span>
+    <a href="/" class="logo" id="navLogo">AA<span class="dot">.</span></a>
     <ul class="nav-links nav-right">
       <li><a href="#education">Education</a></li>
       <li><a href="#experience">Experience</a></li>
@@ -91,6 +96,7 @@
       <li><a href="#testimonials">Testimonials</a></li>
       <li><a href="#contact">Contact</a></li>
     </ul>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode">🌙</button>
     <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">☰</button>
   </div>
 </nav>
@@ -104,7 +110,7 @@
     <div class="hero-left">
       <p class="mono-tag hero-status-tag"><span class="status-dot"></span> AVAILABLE FOR OPPORTUNITIES</p>
 
-      <h1 class="hero-title" id="heroHeading">Hi, I'm Aizaz Ali</h1>
+      <h1 class="hero-title" id="heroHeading">Hi, I'm Syed Aizaz Ali</h1>
       <p class="hero-desc" id="heroSubheading">QA Engineer × AI Automation Builder</p>
       <div class="hero-cta">
         <a href="#projects" class="btn btn-outline">View Projects</a>
@@ -116,8 +122,8 @@
     <div class="hero-right">
       <div class="hero-photo-wrap">
         <div class="hero-photo-frame">
-          <img id="heroPhoto1" src="" alt="Aizaz Ali" class="hero-photo is-active" />
-          <img id="heroPhoto2" src="" alt="Aizaz Ali" class="hero-photo" />
+          <img id="heroPhoto1" src="" alt="Syed Aizaz Ali" class="hero-photo is-active" />
+          <img id="heroPhoto2" src="" alt="Syed Aizaz Ali" class="hero-photo" />
           <div class="slide-dots" id="slideDots">
             <span class="is-active"></span>
             <span></span>
@@ -138,7 +144,7 @@
   <div class="about-grid">
     <div class="about-photo-wrap">
       <div class="about-photo-frame">
-        <img id="aboutPhoto" src="" alt="Aizaz Ali" class="about-photo" loading="lazy" />
+        <img id="aboutPhoto" src="" alt="Syed Aizaz Ali" class="about-photo" loading="lazy" />
       </div>
     </div>
     <div class="about-text">
@@ -243,7 +249,7 @@
   <div class="footer-inner">
     <div class="footer-top">
       <div class="footer-brand">
-        <span class="logo" id="footerLogo">AA<span class="dot">.</span></span>
+        <a href="/" class="logo" id="footerLogo">AA<span class="dot">.</span></a>
         <p class="footer-tagline" id="footerTagline"></p>
       </div>
       <nav class="footer-nav">
@@ -257,7 +263,7 @@
     <div class="social-row" id="socialLinks"></div>
     <div class="footer-divider"></div>
     <div class="footer-bottom">
-      <p>© <span id="year"></span> <span id="footerName">Aizaz Ali</span>. All rights reserved.</p>
+      <p>© <span id="year"></span> <span id="footerName">Syed Aizaz Ali</span>. All rights reserved.</p>
       <p class="footer-note">Built with intent, not a template.</p>
     </div>
   </div>

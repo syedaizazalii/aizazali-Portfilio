@@ -4,7 +4,6 @@
 (function () {
   const mascot = document.getElementById("astronautMascot");
   if (!mascot) return;
-  if (window.matchMedia("(max-width: 640px)").matches) return;
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
   function randomPoint() {
@@ -214,6 +213,28 @@ document.getElementById("navToggle").addEventListener("click", () => {
   document.querySelector(".nav-right").classList.toggle("open");
 });
 document.getElementById("year").textContent = new Date().getFullYear();
+
+// ==========================================
+// DARK / LIGHT THEME TOGGLE
+// ==========================================
+(function () {
+  const btn = document.getElementById("themeToggle");
+  if (!btn) return;
+
+  function syncIcon() {
+    const isLight = document.body.classList.contains("light-theme");
+    btn.textContent = isLight ? "☀️" : "🌙";
+  }
+
+  syncIcon();
+
+  btn.addEventListener("click", () => {
+    document.body.classList.toggle("light-theme");
+    const isLight = document.body.classList.contains("light-theme");
+    try { localStorage.setItem("theme", isLight ? "light" : "dark"); } catch (e) {}
+    syncIcon();
+  });
+})();
 
 function esc(str) {
   if (!str) return "";
@@ -520,8 +541,8 @@ function toSocialHref(platform, url) {
   const looksLikeBareEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedUrl);
 
   if ((isEmailPlatform || looksLikeBareEmail) && !trimmedUrl.startsWith("http") && !trimmedUrl.startsWith("mailto:")) {
-    // bare email address -> open Gmail web compose in a new tab
-    return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(trimmedUrl)}`;
+    // bare email address -> mailto: opens the device's default mail app (desktop + mobile)
+    return `mailto:${trimmedUrl}`;
   }
   return trimmedUrl;
 }
