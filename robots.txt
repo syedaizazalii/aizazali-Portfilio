@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 
-Sitemap: https://aizazali.netlify.app/sitemap.xml
+Sitemap: https://syedaizazali.netlify.app/sitemap.xml
