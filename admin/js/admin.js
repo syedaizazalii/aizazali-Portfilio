@@ -489,7 +489,7 @@ const FIELD_SCHEMAS = {
   social_links: [
     { name: "platform", label: "Platform Name (e.g. Email, LinkedIn, GitHub)", type: "text", required: true },
     { name: "url", label: "URL or Email Address", type: "text", required: true },
-    { name: "icon_url", label: "Icon URL (optional, PNG/SVG link — leave blank for default icon)", type: "url" },
+    { name: "icon_url", label: "Icon (optional — upload a PNG/SVG, or leave blank for the default icon)", type: "file", accept: "image/*" },
     { name: "sort_order", label: "Display Order", type: "number" },
     { name: "is_visible", label: "Visible on site", type: "checkbox", default: true },
   ],
@@ -723,22 +723,103 @@ async function renderSettingsTab() {
   const content = document.getElementById("tabContent");
   content.innerHTML = renderSkeleton();
 
-  const [{ data, error }, currentFavicon, currentAccent, currentFooterNote, sectionsRes] = await Promise.all([
-    supabaseClient.from("settings").select("*").order("key", { ascending: true }),
-    getSetting("favicon_url"),
-    getSetting("theme_accent_color"),
-    getSetting("footer_note"),
-    supabaseClient.from("page_sections").select("*").order("sort_order", { ascending: true }),
-  ]);
+  const { data, error } = await supabaseClient.from("settings").select("*").order("key", { ascending: true });
 
   if (error) {
     content.innerHTML = `<p style="color:var(--accent);">Error loading data: ${esc(error.message)}</p>`;
     return;
   }
 
+  content.innerHTML = `
+    <p class="dash-subtitle">Raw key/value settings. For favicon, colors, page layout, and testimonial
+    style, use the <strong>Portfolio Builder</strong> tab instead — it's easier to work with.</p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2>Settings (${data.length})</h2>
+      <div style="display:flex;gap:0.6rem;">
+        <button class="btn-secondary" id="exportBtn" style="width:auto;">Export CSV</button>
+        <button class="btn-primary" id="addBtn">+ Add New</button>
+      </div>
+    </div>
+    <div class="bulk-bar" id="bulkBar" style="display:none;">
+      <button class="btn-action danger" id="bulkDeleteBtn">Delete selected (<span id="bulkCount">0</span>)</button>
+      <button class="btn-secondary" id="bulkClearBtn" style="width:auto;">Clear selection</button>
+    </div>
+    <div id="tableWrap" style="overflow-x:auto;"></div>
+  `;
+
+  const config = TABLES.settings;
+  document.getElementById("exportBtn").addEventListener("click", () => exportToCSV(data, "settings.csv"));
+  document.getElementById("addBtn").addEventListener("click", () => openAddModal("settings"));
+  renderTableData("settings", data, config);
+
+  const searchBox = document.getElementById("searchBox");
+  searchBox.style.display = "inline-block";
+  searchBox.value = "";
+  searchBox.placeholder = "Search settings...";
+  searchBox.oninput = debounce(() => {
+    const term = searchBox.value.trim().toLowerCase();
+    const filtered = !term ? data : data.filter(row =>
+      Object.values(row).some(v => v !== null && v !== undefined && String(v).toLowerCase().includes(term))
+    );
+    renderTableData("settings", filtered, config);
+  }, 250);
+}
+
+// ==========================================
+// PORTFOLIO BUILDER — one place to control everything about how the
+// live site looks: favicon, brand color, footer note, which sections
+// show and in what order, and which testimonial layout is used.
+// Everything here is stored in the "settings" table (or page_sections)
+// and read by the portfolio site — no code edits needed to change any of it.
+// ==========================================
+const TESTIMONIAL_STYLES = [
+  {
+    key: "grid",
+    name: "Grid Cards",
+    desc: "Photo, quote, name and role in an even grid of cards.",
+    preview: `<div class="tstyle-preview tstyle-grid"><div class="tstyle-card"></div><div class="tstyle-card"></div><div class="tstyle-card"></div></div>`,
+  },
+  {
+    key: "minimal",
+    name: "Minimal Quote",
+    desc: "Centered text with a large quotation mark and a small round photo.",
+    preview: `<div class="tstyle-preview tstyle-minimal"><span class="tstyle-quote">"</span><div class="tstyle-line"></div><div class="tstyle-line short"></div><div class="tstyle-avatar"></div></div>`,
+  },
+  {
+    key: "spotlight",
+    name: "Spotlight",
+    desc: "A large photo on one side with the quote next to it.",
+    preview: `<div class="tstyle-preview tstyle-spotlight"><div class="tstyle-photo"></div><div class="tstyle-lines"><div class="tstyle-line"></div><div class="tstyle-line short"></div></div></div>`,
+  },
+  {
+    key: "carousel",
+    name: "Carousel",
+    desc: "One testimonial at a time, with arrows to move between them.",
+    preview: `<div class="tstyle-preview tstyle-carousel"><span class="tstyle-arrow">‹</span><div class="tstyle-card wide"></div><span class="tstyle-arrow">›</span></div>`,
+  },
+];
+
+async function renderPortfolioBuilderTab() {
+  const pageTitle = document.getElementById("pageTitle");
+  pageTitle.textContent = "Portfolio Builder";
+  const content = document.getElementById("tabContent");
+  content.innerHTML = renderSkeleton();
+
+  const [currentFavicon, currentAccent, currentFooterNote, currentTestimonialStyle, sectionsRes] = await Promise.all([
+    getSetting("favicon_url"),
+    getSetting("theme_accent_color"),
+    getSetting("footer_note"),
+    getSetting("testimonials_style"),
+    supabaseClient.from("page_sections").select("*").order("sort_order", { ascending: true }),
+  ]);
+
   const sectionsData = sectionsRes.error ? null : (sectionsRes.data || []);
+  const activeStyle = currentTestimonialStyle || "grid";
 
   content.innerHTML = `
+    <p class="dash-subtitle">Everything about how the portfolio looks and what it shows — all in one place.</p>
+
     <div class="favicon-card">
       <h3>Site Icon (Favicon)</h3>
       <p class="favicon-hint">This is the small icon shown in the browser tab and bookmarks. Upload and
@@ -791,50 +872,53 @@ async function renderSettingsTab() {
     </div>
 
     <div class="favicon-card">
+      <h3>Testimonials Style</h3>
+      <p class="favicon-hint">Pick how testimonials are laid out on the portfolio. This applies to all of them at once.</p>
+      <div class="tstyle-grid-wrap">
+        ${TESTIMONIAL_STYLES.map(s => `
+          <button type="button" class="tstyle-option ${s.key === activeStyle ? "is-selected" : ""}" data-style="${s.key}">
+            ${s.preview}
+            <span class="tstyle-name">${esc(s.name)}</span>
+            <span class="tstyle-desc">${esc(s.desc)}</span>
+          </button>
+        `).join("")}
+      </div>
+      <p class="form-status" id="tstyleStatus"></p>
+    </div>
+
+    <div class="favicon-card">
       <h3>Page Sections</h3>
       <p class="favicon-hint">Turn sections on or off, and drag to change the order they appear in on the
       portfolio (Home always stays first).</p>
       ${sectionsData === null
-        ? `<p class="favicon-hint" style="color:var(--accent);">This feature needs a one-time database setup — see the note below the Settings page for the SQL to run in Supabase.</p>`
+        ? `<p class="favicon-hint" style="color:var(--accent);">This feature needs a one-time database setup — ask for the "page_sections" SQL migration if you haven't run it yet.</p>`
         : `<div id="pageSectionsList" class="page-sections-list"></div>
            <p class="form-status" id="pageSectionsStatus"></p>`
       }
     </div>
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-      <h2>Other Settings (${data.length})</h2>
-      <div style="display:flex;gap:0.6rem;">
-        <button class="btn-secondary" id="exportBtn" style="width:auto;">Export CSV</button>
-        <button class="btn-primary" id="addBtn">+ Add New</button>
-      </div>
-    </div>
-    <div class="bulk-bar" id="bulkBar" style="display:none;">
-      <button class="btn-action danger" id="bulkDeleteBtn">Delete selected (<span id="bulkCount">0</span>)</button>
-      <button class="btn-secondary" id="bulkClearBtn" style="width:auto;">Clear selection</button>
-    </div>
-    <div id="tableWrap" style="overflow-x:auto;"></div>
   `;
-
-  const config = TABLES.settings;
-  document.getElementById("exportBtn").addEventListener("click", () => exportToCSV(data, "settings.csv"));
-  document.getElementById("addBtn").addEventListener("click", () => openAddModal("settings"));
-  renderTableData("settings", data, config);
-
-  const searchBox = document.getElementById("searchBox");
-  searchBox.style.display = "inline-block";
-  searchBox.value = "";
-  searchBox.placeholder = "Search settings...";
-  searchBox.oninput = debounce(() => {
-    const term = searchBox.value.trim().toLowerCase();
-    const filtered = !term ? data : data.filter(row =>
-      Object.values(row).some(v => v !== null && v !== undefined && String(v).toLowerCase().includes(term))
-    );
-    renderTableData("settings", filtered, config);
-  }, 250);
 
   setupFaviconCropper();
   setupAppearancePanel();
+  setupTestimonialStylePanel();
   if (sectionsData !== null) setupPageSectionsPanel(sectionsData);
+}
+
+function setupTestimonialStylePanel() {
+  const status = document.getElementById("tstyleStatus");
+  document.querySelectorAll(".tstyle-option").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.style;
+      document.querySelectorAll(".tstyle-option").forEach(b => b.classList.remove("is-selected"));
+      btn.classList.add("is-selected");
+      status.textContent = "Saving…";
+      const { error } = await upsertSetting("testimonials_style", key);
+      if (error) { status.textContent = ""; showToast("Error: " + error.message, "error"); return; }
+      status.textContent = "Saved! It may take a minute to appear for visitors.";
+      showToast("Testimonials style updated.");
+      logActivity("Updated", "settings", "testimonials_style: " + key);
+    });
+  });
 }
 
 function setupAppearancePanel() {
@@ -1106,6 +1190,7 @@ async function renderTab(tabName) {
 
   if (tabName === "dashboard") { searchBox.style.display = "none"; renderDashboard(); return; }
   if (tabName === "analytics") { searchBox.style.display = "none"; renderAnalyticsTab(); return; }
+  if (tabName === "portfolio_builder") { searchBox.style.display = "none"; renderPortfolioBuilderTab(); return; }
   if (tabName === "profile") { searchBox.style.display = "none"; renderProfileTab(); return; }
   if (tabName === "skill_categories") { searchBox.style.display = "none"; renderSkillCategoriesTab(); return; }
   if (tabName === "settings") { searchBox.style.display = "none"; renderSettingsTab(); return; }
@@ -1543,12 +1628,33 @@ async function renderProfileTab() {
 
   const { data } = await supabaseClient.from("profile").select("*").limit(1).maybeSingle();
   profileRowId = data ? data.id : null;
+  const row = data || {};
+
+  const byName = (names) => PROFILE_FIELDS.filter(f => names.includes(f.name));
+  const heroFields = byName(["full_name", "professional_title", "tagline", "hero_heading", "hero_subheading", "hero_photo_url"]);
+  const aboutFields = byName(["about_heading", "about_paragraphs", "about_photo_url"]);
+  const resumeFields = byName(["resume_url"]);
 
   const content = document.getElementById("tabContent");
   content.innerHTML = `
-    <div style="max-width:600px;">
+    <div style="max-width:640px;">
       <form id="profileForm">
-        ${PROFILE_FIELDS.map(f => renderField(f, data || {})).join("")}
+
+        <div class="profile-section-card">
+          <h3 class="profile-section-title">Hero Section <span class="profile-section-hint">— the top of the homepage</span></h3>
+          ${heroFields.map(f => renderField(f, row)).join("")}
+        </div>
+
+        <div class="profile-section-card">
+          <h3 class="profile-section-title">About Section</h3>
+          ${aboutFields.map(f => renderField(f, row)).join("")}
+        </div>
+
+        <div class="profile-section-card">
+          <h3 class="profile-section-title">Resume</h3>
+          ${resumeFields.map(f => renderField(f, row)).join("")}
+        </div>
+
         <button type="submit" class="btn-primary" style="margin-top:1rem;">Save Profile</button>
         <p class="form-status" id="profileStatus"></p>
       </form>
