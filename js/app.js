@@ -313,8 +313,8 @@ async function loadProfile() {
 
   if (data.full_name) {
     document.title = data.full_name + " — Portfolio";
-    document.getElementById("navLogo").innerHTML = `${esc(data.full_name)}<span class="dot">.</span>`;
-    document.getElementById("footerLogo").innerHTML = `${esc(data.full_name)}<span class="dot">.</span>`;
+    document.getElementById("navLogo").innerHTML = `${esc(data.full_name)}`;
+    document.getElementById("footerLogo").innerHTML = `${esc(data.full_name)}`;
     document.getElementById("footerName").textContent = data.full_name;
   }
   const footerTaglineText = data.professional_title || data.tagline;
