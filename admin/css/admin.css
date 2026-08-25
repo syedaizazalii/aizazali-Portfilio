@@ -396,6 +396,33 @@ body {
 
 .modal-form { display: flex; flex-direction: column; gap: 1rem; }
 .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+
+.profile-section-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+.profile-section-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.profile-section-hint {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 .form-group label { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .form-group input, .form-group textarea {
   background: var(--surface);
@@ -947,6 +974,56 @@ tr.dragging { opacity: 0.4; }
 .page-section-label { flex: 1; font-size: 0.88rem; color: var(--text); }
 .page-section-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--text-muted); cursor: pointer; }
 .page-section-toggle input { cursor: pointer; }
+
+/* ==========================================
+   TESTIMONIAL STYLE PICKER (Portfolio Builder tab)
+   ========================================== */
+.tstyle-grid-wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+.tstyle-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.1rem 1rem;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+}
+.tstyle-option:hover { border-color: var(--border-strong); }
+.tstyle-option.is-selected { border-color: var(--accent); background: var(--surface-2); }
+.tstyle-name { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.tstyle-desc { font-size: 0.72rem; color: var(--text-muted); line-height: 1.4; }
+
+.tstyle-preview {
+  width: 100%; height: 60px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.tstyle-card { width: 26px; height: 40px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border-strong); }
+.tstyle-card.wide { width: 70px; }
+.tstyle-grid .tstyle-card { background: var(--accent); opacity: 0.25; }
+
+.tstyle-minimal { flex-direction: column; gap: 3px; position: relative; }
+.tstyle-minimal .tstyle-quote { position: absolute; top: -4px; font-size: 1.4rem; color: var(--accent); font-family: var(--font-display); opacity: 0.6; }
+.tstyle-minimal .tstyle-line { width: 70px; height: 4px; border-radius: 2px; background: var(--surface-2); }
+.tstyle-minimal .tstyle-line.short { width: 40px; }
+.tstyle-minimal .tstyle-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); opacity: 0.4; margin-top: 4px; }
+
+.tstyle-spotlight { gap: 8px; }
+.tstyle-spotlight .tstyle-photo { width: 34px; height: 44px; border-radius: 6px; background: var(--accent); opacity: 0.3; }
+.tstyle-spotlight .tstyle-lines { display: flex; flex-direction: column; gap: 4px; }
+.tstyle-spotlight .tstyle-line { width: 60px; height: 4px; border-radius: 2px; background: var(--surface-2); }
+.tstyle-spotlight .tstyle-line.short { width: 34px; }
+
+.tstyle-carousel { gap: 8px; }
+.tstyle-arrow { color: var(--text-faint); font-size: 1.1rem; }
+.tstyle-carousel .tstyle-card.wide { background: var(--accent); opacity: 0.25; }
 
 /* RESPONSIVE */
 @media (max-width: 1024px) {
