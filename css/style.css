@@ -395,6 +395,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 
 }
 .social-row a:hover { transform: translateY(-2px); opacity: 0.88; }
 .social-row svg { width: 19px; height: 19px; }
+.social-row .social-icon-img { width: 19px; height: 19px; object-fit: contain; border-radius: 3px; }
 .social-row a.platform-linkedin { background: #0A66C2; }
 .social-row a.platform-github { background: #181717; }
 .social-row a.platform-email { background: #EA4335; }
