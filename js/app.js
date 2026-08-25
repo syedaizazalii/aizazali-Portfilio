@@ -530,7 +530,11 @@ function normalizePlatform(platform) {
   return p;
 }
 
-function iconFor(platform) {
+function iconFor(platform, iconUrl) {
+  if (iconUrl && iconUrl.trim()) {
+    // Admin provided a custom icon image URL -> use it directly, no code changes ever needed
+    return `<img src="${esc(iconUrl.trim())}" alt="" class="social-icon-img" />`;
+  }
   const p = normalizePlatform(platform);
   return SOCIAL_ICONS[p] || SOCIAL_ICONS.default;
 }
@@ -555,7 +559,7 @@ async function loadSocialLinks() {
     const href = toSocialHref(s.platform, s.url);
     const p = normalizePlatform(s.platform);
     const platformClass = SOCIAL_ICONS[p] ? `platform-${p}` : "";
-    return `<a class="${platformClass}" href="${esc(href)}" target="_blank" rel="noopener" title="${esc(s.platform)}" aria-label="${esc(s.platform)}">${iconFor(s.platform)}</a>`;
+    return `<a class="${platformClass}" href="${esc(href)}" target="_blank" rel="noopener" title="${esc(s.platform)}" aria-label="${esc(s.platform)}">${iconFor(s.platform, s.icon_url)}</a>`;
   }).join("");
 
   const footerEl = document.getElementById("socialLinks");
