@@ -914,6 +914,40 @@ tr.dragging { opacity: 0.4; }
 .activity-feed-text { font-size: 0.82rem; color: var(--text); line-height: 1.4; }
 .activity-feed-time { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-faint); }
 
+/* ==========================================
+   SITE APPEARANCE (Settings tab)
+   ========================================== */
+.appearance-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.appearance-field { display: flex; flex-direction: column; gap: 0.5rem; }
+.appearance-field-wide { flex: 1; min-width: 220px; }
+.appearance-label { font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.appearance-color-row { display: flex; align-items: center; gap: 0.7rem; }
+.appearance-color-row input[type="color"] {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--border);
+  background: none; cursor: pointer; padding: 2px;
+}
+.appearance-color-hex { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text); }
+.appearance-field-wide input[type="text"] {
+  width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.65rem 0.85rem; color: var(--text); font-size: 0.85rem; font-family: var(--font-body);
+}
+
+/* ==========================================
+   PAGE SECTIONS MANAGER (Settings tab)
+   ========================================== */
+.page-sections-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.page-section-row {
+  display: flex; align-items: center; gap: 0.9rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.7rem 1rem; cursor: grab; transition: var(--transition);
+}
+.page-section-row:active { cursor: grabbing; }
+.page-section-row.dragging { opacity: 0.4; }
+.page-section-row.drag-over { border-color: var(--accent); }
+.page-section-label { flex: 1; font-size: 0.88rem; color: var(--text); }
+.page-section-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--text-muted); cursor: pointer; }
+.page-section-toggle input { cursor: pointer; }
+
 /* RESPONSIVE */
 @media (max-width: 1024px) {
   .admin-dashboard { grid-template-columns: 1fr; }
