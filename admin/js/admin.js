@@ -489,7 +489,7 @@ const FIELD_SCHEMAS = {
   social_links: [
     { name: "platform", label: "Platform Name (e.g. Email, LinkedIn, GitHub)", type: "text", required: true },
     { name: "url", label: "URL or Email Address", type: "text", required: true },
-    { name: "icon", label: "Icon (optional)", type: "text" },
+    { name: "icon_url", label: "Icon URL (optional, PNG/SVG link — leave blank for default icon)", type: "url" },
     { name: "sort_order", label: "Display Order", type: "number" },
     { name: "is_visible", label: "Visible on site", type: "checkbox", default: true },
   ],
