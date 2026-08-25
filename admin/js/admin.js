@@ -723,15 +723,20 @@ async function renderSettingsTab() {
   const content = document.getElementById("tabContent");
   content.innerHTML = renderSkeleton();
 
-  const [{ data, error }, currentFavicon] = await Promise.all([
+  const [{ data, error }, currentFavicon, currentAccent, currentFooterNote, sectionsRes] = await Promise.all([
     supabaseClient.from("settings").select("*").order("key", { ascending: true }),
     getSetting("favicon_url"),
+    getSetting("theme_accent_color"),
+    getSetting("footer_note"),
+    supabaseClient.from("page_sections").select("*").order("sort_order", { ascending: true }),
   ]);
 
   if (error) {
     content.innerHTML = `<p style="color:var(--accent);">Error loading data: ${esc(error.message)}</p>`;
     return;
   }
+
+  const sectionsData = sectionsRes.error ? null : (sectionsRes.data || []);
 
   content.innerHTML = `
     <div class="favicon-card">
@@ -762,6 +767,38 @@ async function renderSettingsTab() {
         </div>
       </div>
       <p class="form-status" id="faviconStatus"></p>
+    </div>
+
+    <div class="favicon-card">
+      <h3>Site Appearance</h3>
+      <p class="favicon-hint">The accent color used for buttons, highlights, and skill bars — plus the small
+      note shown at the very bottom of the footer.</p>
+      <div class="appearance-row">
+        <div class="appearance-field">
+          <label class="appearance-label">Accent color</label>
+          <div class="appearance-color-row">
+            <input type="color" id="accentColorInput" value="${esc(currentAccent || "#F5B843")}" />
+            <span class="appearance-color-hex" id="accentColorHex">${esc(currentAccent || "#F5B843")}</span>
+          </div>
+        </div>
+        <div class="appearance-field appearance-field-wide">
+          <label class="appearance-label">Footer note</label>
+          <input type="text" id="footerNoteInput" value="${esc(currentFooterNote || "Built with intent, not a template.")}" maxlength="120" />
+        </div>
+      </div>
+      <button type="button" class="btn-primary" id="appearanceSaveBtn" style="width:auto;margin-top:1rem;">Save Appearance</button>
+      <p class="form-status" id="appearanceStatus"></p>
+    </div>
+
+    <div class="favicon-card">
+      <h3>Page Sections</h3>
+      <p class="favicon-hint">Turn sections on or off, and drag to change the order they appear in on the
+      portfolio (Home always stays first).</p>
+      ${sectionsData === null
+        ? `<p class="favicon-hint" style="color:var(--accent);">This feature needs a one-time database setup — see the note below the Settings page for the SQL to run in Supabase.</p>`
+        : `<div id="pageSectionsList" class="page-sections-list"></div>
+           <p class="form-status" id="pageSectionsStatus"></p>`
+      }
     </div>
 
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
@@ -796,7 +833,105 @@ async function renderSettingsTab() {
   }, 250);
 
   setupFaviconCropper();
+  setupAppearancePanel();
+  if (sectionsData !== null) setupPageSectionsPanel(sectionsData);
 }
+
+function setupAppearancePanel() {
+  const colorInput = document.getElementById("accentColorInput");
+  const colorHex = document.getElementById("accentColorHex");
+  const noteInput = document.getElementById("footerNoteInput");
+  const saveBtn = document.getElementById("appearanceSaveBtn");
+  const status = document.getElementById("appearanceStatus");
+
+  colorInput.addEventListener("input", () => { colorHex.textContent = colorInput.value; });
+
+  saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true;
+    status.textContent = "Saving…";
+    try {
+      const r1 = await upsertSetting("theme_accent_color", colorInput.value);
+      const r2 = await upsertSetting("footer_note", noteInput.value.trim());
+      if (r1.error) throw new Error(r1.error.message);
+      if (r2.error) throw new Error(r2.error.message);
+      status.textContent = "Saved! It may take a minute to appear for visitors.";
+      showToast("Appearance updated.");
+      logActivity("Updated", "settings", "site appearance");
+    } catch (err) {
+      status.textContent = "";
+      showToast("Error: " + err.message, "error");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+}
+
+function setupPageSectionsPanel(sections) {
+  const list = document.getElementById("pageSectionsList");
+  const status = document.getElementById("pageSectionsStatus");
+  if (!list) return;
+
+  function render() {
+    list.innerHTML = sections.map(s => `
+      <div class="page-section-row" draggable="true" data-id="${esc(s.id)}">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        <span class="page-section-label">${esc(s.label)}</span>
+        <label class="page-section-toggle">
+          <input type="checkbox" data-id="${esc(s.id)}" ${s.is_visible ? "checked" : ""} />
+          <span>Visible</span>
+        </label>
+      </div>
+    `).join("");
+
+    list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener("change", async () => {
+        const id = cb.dataset.id;
+        const section = sections.find(s => String(s.id) === id);
+        if (!section) return;
+        section.is_visible = cb.checked;
+        const { error } = await supabaseClient.from("page_sections").update({ is_visible: cb.checked }).eq("id", id);
+        if (error) { showToast("Error: " + error.message, "error"); return; }
+        status.textContent = "Saved.";
+        showToast(`${section.label} is now ${cb.checked ? "visible" : "hidden"} on the site.`);
+      });
+    });
+
+    let dragSrcId = null;
+    list.querySelectorAll(".page-section-row").forEach(row => {
+      row.addEventListener("dragstart", () => { dragSrcId = row.dataset.id; row.classList.add("dragging"); });
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging");
+        list.querySelectorAll(".page-section-row").forEach(r => r.classList.remove("drag-over"));
+      });
+      row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("drag-over"); });
+      row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+      row.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        row.classList.remove("drag-over");
+        const targetId = row.dataset.id;
+        if (!dragSrcId || dragSrcId === targetId) return;
+
+        const fromIndex = sections.findIndex(s => String(s.id) === dragSrcId);
+        const toIndex = sections.findIndex(s => String(s.id) === targetId);
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const [moved] = sections.splice(fromIndex, 1);
+        sections.splice(toIndex, 0, moved);
+        sections.forEach((s, i) => { s.sort_order = i; });
+        render();
+
+        const results = await Promise.all(sections.map((s, i) => supabaseClient.from("page_sections").update({ sort_order: i }).eq("id", s.id)));
+        const failed = results.find(r => r.error);
+        if (failed) showToast("Error saving order: " + failed.error.message, "error");
+        else showToast("Section order updated.");
+      });
+    });
+  }
+
+  render();
+}
+
+
 
 function setupFaviconCropper() {
   const frameSize = 220;
