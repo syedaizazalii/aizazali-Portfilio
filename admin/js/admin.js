@@ -950,6 +950,7 @@ async function renderPortfolioBuilderTab() {
           </div>
         </div>
       </div>
+      <button type="button" class="btn-primary" id="tstyleSaveBtn" style="width:auto;margin-top:1rem;">Save Testimonials Style</button>
       <p class="form-status" id="tstyleStatus"></p>
     </div>
 
@@ -966,6 +967,7 @@ async function renderPortfolioBuilderTab() {
           </button>
         `).join("")}
       </div>
+      <button type="button" class="btn-primary" id="sstyleSaveBtn" style="width:auto;margin-top:1rem;">Save Skills Style</button>
       <p class="form-status" id="sstyleStatus"></p>
     </div>
 
@@ -990,18 +992,26 @@ async function renderPortfolioBuilderTab() {
 
 function setupTestimonialStylePanel() {
   const status = document.getElementById("tstyleStatus");
+  let selectedStyle = document.querySelector(".tstyle-option[data-style].is-selected")?.dataset.style || "grid";
+
   document.querySelectorAll(".tstyle-option[data-style]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const key = btn.dataset.style;
+    btn.addEventListener("click", () => {
+      selectedStyle = btn.dataset.style;
       document.querySelectorAll(".tstyle-option[data-style]").forEach(b => b.classList.remove("is-selected"));
       btn.classList.add("is-selected");
-      status.textContent = "Saving…";
-      const { error } = await upsertSetting("testimonials_style", key);
-      if (error) { status.textContent = ""; showToast("Error: " + error.message, "error"); return; }
-      status.textContent = "Saved! It may take a minute to appear for visitors.";
-      showToast("Testimonials style updated.");
-      logActivity("Updated", "settings", "testimonials_style: " + key);
+      status.textContent = "";
     });
+  });
+
+  document.getElementById("tstyleSaveBtn").addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    status.textContent = "Saving…";
+    const { error } = await upsertSetting("testimonials_style", selectedStyle);
+    e.target.disabled = false;
+    if (error) { status.textContent = ""; showToast("Error: " + error.message, "error"); return; }
+    status.textContent = "Saved! It may take a minute to appear for visitors.";
+    showToast("Testimonials style updated.");
+    logActivity("Updated", "settings", "testimonials_style: " + selectedStyle);
   });
 
   const colorInput = document.getElementById("testimonialAccentInput");
@@ -1020,18 +1030,26 @@ function setupTestimonialStylePanel() {
 
 function setupSkillsStylePanel() {
   const status = document.getElementById("sstyleStatus");
+  let selectedStyle = document.querySelector(".sstyle-option[data-sstyle].is-selected")?.dataset.sstyle || "bars";
+
   document.querySelectorAll(".sstyle-option[data-sstyle]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const key = btn.dataset.sstyle;
+    btn.addEventListener("click", () => {
+      selectedStyle = btn.dataset.sstyle;
       document.querySelectorAll(".sstyle-option[data-sstyle]").forEach(b => b.classList.remove("is-selected"));
       btn.classList.add("is-selected");
-      status.textContent = "Saving…";
-      const { error } = await upsertSetting("skills_style", key);
-      if (error) { status.textContent = ""; showToast("Error: " + error.message, "error"); return; }
-      status.textContent = "Saved! It may take a minute to appear for visitors.";
-      showToast("Skills style updated.");
-      logActivity("Updated", "settings", "skills_style: " + key);
+      status.textContent = "";
     });
+  });
+
+  document.getElementById("sstyleSaveBtn").addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    status.textContent = "Saving…";
+    const { error } = await upsertSetting("skills_style", selectedStyle);
+    e.target.disabled = false;
+    if (error) { status.textContent = ""; showToast("Error: " + error.message, "error"); return; }
+    status.textContent = "Saved! It may take a minute to appear for visitors.";
+    showToast("Skills style updated.");
+    logActivity("Updated", "settings", "skills_style: " + selectedStyle);
   });
 }
 
