@@ -436,9 +436,11 @@ const FIELD_SCHEMAS = {
   ],
   skill_categories: [
     { name: "name", label: "Category Name", type: "text", required: true },
+    { name: "icon_url", label: "Icon (optional — upload a PNG/SVG)", type: "file", accept: "image/*" },
     { name: "proficiency", label: "Proficiency % (0-100)", type: "number", min: 1, max: 100 },
     { name: "skills_list", label: "Skills (comma separated)", type: "textarea" },
     { name: "sort_order", label: "Display Order", type: "number" },
+    { name: "is_visible", label: "Visible on site", type: "checkbox", default: true },
   ],
   experience: [
     { name: "company", label: "Company / Organization", type: "text", required: true },
@@ -798,6 +800,57 @@ const TESTIMONIAL_STYLES = [
     desc: "One testimonial at a time, with arrows to move between them.",
     preview: `<div class="tstyle-preview tstyle-carousel"><span class="tstyle-arrow">‹</span><div class="tstyle-card wide"></div><span class="tstyle-arrow">›</span></div>`,
   },
+  {
+    key: "masonry",
+    name: "Masonry Wall",
+    desc: "Staggered cards of different heights, like a Pinterest board.",
+    preview: `<div class="tstyle-preview tstyle-masonry"><div class="tstyle-mcol"><div class="tstyle-mcard tall"></div><div class="tstyle-mcard"></div></div><div class="tstyle-mcol"><div class="tstyle-mcard"></div><div class="tstyle-mcard tall"></div></div></div>`,
+  },
+  {
+    key: "bubble",
+    name: "Chat Bubble",
+    desc: "Quotes styled like chat message bubbles, photo alongside each one.",
+    preview: `<div class="tstyle-preview tstyle-bubble"><div class="tstyle-bubble-shape"></div><div class="tstyle-avatar"></div></div>`,
+  },
+  {
+    key: "ticker",
+    name: "Auto-scroll Ticker",
+    desc: "Cards drift sideways on their own in a continuous loop.",
+    preview: `<div class="tstyle-preview tstyle-ticker"><div class="tstyle-card small"></div><div class="tstyle-card small"></div><div class="tstyle-card small"></div><span class="tstyle-ticker-arrow">→</span></div>`,
+  },
+  {
+    key: "stacked",
+    name: "Stacked Deck",
+    desc: "Cards overlap like a stack of playing cards you can flip through.",
+    preview: `<div class="tstyle-preview tstyle-stacked"><div class="tstyle-card stack-3"></div><div class="tstyle-card stack-2"></div><div class="tstyle-card stack-1"></div></div>`,
+  },
+];
+
+const SKILLS_STYLES = [
+  {
+    key: "bars",
+    name: "Progress Bars",
+    desc: "Cards with a name, percentage, and a filled progress bar (current look).",
+    preview: `<div class="sstyle-preview sstyle-bars"><div class="sstyle-line"></div><div class="sstyle-bar"><div class="sstyle-bar-fill" style="width:70%"></div></div></div>`,
+  },
+  {
+    key: "rings",
+    name: "Circular Rings",
+    desc: "A ring chart per skill, percentage shown in the center.",
+    preview: `<div class="sstyle-preview sstyle-rings"><div class="sstyle-ring"></div><div class="sstyle-ring"></div><div class="sstyle-ring"></div></div>`,
+  },
+  {
+    key: "tags",
+    name: "Tag Pills",
+    desc: "No percentages — just clean rounded pill tags grouped by category.",
+    preview: `<div class="sstyle-preview sstyle-tags"><span class="sstyle-tag"></span><span class="sstyle-tag wide"></span><span class="sstyle-tag"></span></div>`,
+  },
+  {
+    key: "icons",
+    name: "Icon Cards",
+    desc: "A big icon on top of each card, name and percentage below it.",
+    preview: `<div class="sstyle-preview sstyle-icons"><div class="sstyle-icard"></div><div class="sstyle-icard"></div><div class="sstyle-icard"></div></div>`,
+  },
 ];
 
 async function renderPortfolioBuilderTab() {
@@ -806,16 +859,19 @@ async function renderPortfolioBuilderTab() {
   const content = document.getElementById("tabContent");
   content.innerHTML = renderSkeleton();
 
-  const [currentFavicon, currentAccent, currentFooterNote, currentTestimonialStyle, sectionsRes] = await Promise.all([
+  const [currentFavicon, currentAccent, currentFooterNote, currentTestimonialStyle, currentTestimonialAccent, currentSkillsStyle, sectionsRes] = await Promise.all([
     getSetting("favicon_url"),
     getSetting("theme_accent_color"),
     getSetting("footer_note"),
     getSetting("testimonials_style"),
+    getSetting("testimonials_accent_color"),
+    getSetting("skills_style"),
     supabaseClient.from("page_sections").select("*").order("sort_order", { ascending: true }),
   ]);
 
   const sectionsData = sectionsRes.error ? null : (sectionsRes.data || []);
   const activeStyle = currentTestimonialStyle || "grid";
+  const activeSkillsStyle = currentSkillsStyle || "bars";
 
   content.innerHTML = `
     <p class="dash-subtitle">Everything about how the portfolio looks and what it shows — all in one place.</p>
@@ -873,7 +929,8 @@ async function renderPortfolioBuilderTab() {
 
     <div class="favicon-card">
       <h3>Testimonials Style</h3>
-      <p class="favicon-hint">Pick how testimonials are laid out on the portfolio. This applies to all of them at once.</p>
+      <p class="favicon-hint">Pick how testimonials are laid out on the portfolio, and their own accent color
+      (leave blank to use the site's main accent color). Applies to all testimonials at once.</p>
       <div class="tstyle-grid-wrap">
         ${TESTIMONIAL_STYLES.map(s => `
           <button type="button" class="tstyle-option ${s.key === activeStyle ? "is-selected" : ""}" data-style="${s.key}">
@@ -883,13 +940,39 @@ async function renderPortfolioBuilderTab() {
           </button>
         `).join("")}
       </div>
+      <div class="appearance-row" style="margin-top:1.25rem;">
+        <div class="appearance-field">
+          <label class="appearance-label">Testimonials accent color</label>
+          <div class="appearance-color-row">
+            <input type="color" id="testimonialAccentInput" value="${esc(currentTestimonialAccent || currentAccent || "#F5B843")}" />
+            <span class="appearance-color-hex" id="testimonialAccentHex">${esc(currentTestimonialAccent || currentAccent || "#F5B843")}</span>
+            <button type="button" class="btn-secondary" id="testimonialAccentSaveBtn" style="width:auto;">Save Color</button>
+          </div>
+        </div>
+      </div>
       <p class="form-status" id="tstyleStatus"></p>
+    </div>
+
+    <div class="favicon-card">
+      <h3>Skills Style</h3>
+      <p class="favicon-hint">Pick how the Skills section is displayed on the portfolio. Applies to all skill
+      categories at once.</p>
+      <div class="tstyle-grid-wrap">
+        ${SKILLS_STYLES.map(s => `
+          <button type="button" class="tstyle-option sstyle-option ${s.key === activeSkillsStyle ? "is-selected" : ""}" data-sstyle="${s.key}">
+            ${s.preview}
+            <span class="tstyle-name">${esc(s.name)}</span>
+            <span class="tstyle-desc">${esc(s.desc)}</span>
+          </button>
+        `).join("")}
+      </div>
+      <p class="form-status" id="sstyleStatus"></p>
     </div>
 
     <div class="favicon-card">
       <h3>Page Sections</h3>
       <p class="favicon-hint">Turn sections on or off, and drag to change the order they appear in on the
-      portfolio (Home always stays first).</p>
+      portfolio (Home always stays first). Custom sections you create show up here too.</p>
       ${sectionsData === null
         ? `<p class="favicon-hint" style="color:var(--accent);">This feature needs a one-time database setup — ask for the "page_sections" SQL migration if you haven't run it yet.</p>`
         : `<div id="pageSectionsList" class="page-sections-list"></div>
@@ -901,15 +984,16 @@ async function renderPortfolioBuilderTab() {
   setupFaviconCropper();
   setupAppearancePanel();
   setupTestimonialStylePanel();
+  setupSkillsStylePanel();
   if (sectionsData !== null) setupPageSectionsPanel(sectionsData);
 }
 
 function setupTestimonialStylePanel() {
   const status = document.getElementById("tstyleStatus");
-  document.querySelectorAll(".tstyle-option").forEach(btn => {
+  document.querySelectorAll(".tstyle-option[data-style]").forEach(btn => {
     btn.addEventListener("click", async () => {
       const key = btn.dataset.style;
-      document.querySelectorAll(".tstyle-option").forEach(b => b.classList.remove("is-selected"));
+      document.querySelectorAll(".tstyle-option[data-style]").forEach(b => b.classList.remove("is-selected"));
       btn.classList.add("is-selected");
       status.textContent = "Saving…";
       const { error } = await upsertSetting("testimonials_style", key);
@@ -917,6 +1001,36 @@ function setupTestimonialStylePanel() {
       status.textContent = "Saved! It may take a minute to appear for visitors.";
       showToast("Testimonials style updated.");
       logActivity("Updated", "settings", "testimonials_style: " + key);
+    });
+  });
+
+  const colorInput = document.getElementById("testimonialAccentInput");
+  const colorHex = document.getElementById("testimonialAccentHex");
+  const colorSaveBtn = document.getElementById("testimonialAccentSaveBtn");
+  colorInput.addEventListener("input", () => { colorHex.textContent = colorInput.value; });
+  colorSaveBtn.addEventListener("click", async () => {
+    colorSaveBtn.disabled = true;
+    const { error } = await upsertSetting("testimonials_accent_color", colorInput.value);
+    colorSaveBtn.disabled = false;
+    if (error) { showToast("Error: " + error.message, "error"); return; }
+    showToast("Testimonials accent color updated.");
+    logActivity("Updated", "settings", "testimonials_accent_color");
+  });
+}
+
+function setupSkillsStylePanel() {
+  const status = document.getElementById("sstyleStatus");
+  document.querySelectorAll(".sstyle-option[data-sstyle]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.sstyle;
+      document.querySelectorAll(".sstyle-option[data-sstyle]").forEach(b => b.classList.remove("is-selected"));
+      btn.classList.add("is-selected");
+      status.textContent = "Saving…";
+      const { error } = await upsertSetting("skills_style", key);
+      if (error) { status.textContent = ""; showToast("Error: " + error.message, "error"); return; }
+      status.textContent = "Saved! It may take a minute to appear for visitors.";
+      showToast("Skills style updated.");
+      logActivity("Updated", "settings", "skills_style: " + key);
     });
   });
 }
@@ -1015,7 +1129,310 @@ function setupPageSectionsPanel(sections) {
   render();
 }
 
+// ==========================================
+// CUSTOM SECTIONS — create entirely new portfolio sections (with a
+// card-grid of items in each) straight from the admin panel.
+// ==========================================
+function slugify(text) {
+  return text.toLowerCase().trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/-+/g, "_")
+    .slice(0, 40) || "section";
+}
 
+async function renderCustomSectionsTab() {
+  const pageTitle = document.getElementById("pageTitle");
+  pageTitle.textContent = "Custom Sections";
+  const content = document.getElementById("tabContent");
+  content.innerHTML = renderSkeleton();
+
+  const { data, error } = await supabaseClient
+    .from("custom_sections")
+    .select("*, custom_section_items(count)")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    content.innerHTML = `
+      <div class="favicon-setup-notice" style="background:var(--bg-elevated);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);padding:1.5rem 1.75rem;max-width:560px;">
+        <h3 style="font-family:var(--font-display);margin-bottom:0.75rem;">Custom Sections isn't set up yet</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;">${esc(error.message)}</p>
+        <p style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;">Run the "custom_sections" SQL migration in Supabase, then reload this tab.</p>
+      </div>`;
+    return;
+  }
+
+  content.innerHTML = `
+    <p class="dash-subtitle">Create brand-new sections for the portfolio — like "Awards" or "Hobbies" — with your own cards inside. No code, ever.</p>
+    <button type="button" class="btn-primary" id="newSectionBtn" style="width:auto;margin-bottom:1.5rem;">+ New Section</button>
+
+    <div class="new-section-form" id="newSectionForm" style="display:none;">
+      <div class="form-group">
+        <label>Section Heading (shown on the portfolio)</label>
+        <input type="text" id="newSectionHeading" placeholder="e.g. Awards & Recognition" maxlength="60" />
+      </div>
+      <label class="page-section-toggle" style="margin-bottom:1rem;">
+        <input type="checkbox" id="newSectionVisible" checked />
+        <span>Visible on site</span>
+      </label>
+      <div style="display:flex;gap:0.6rem;">
+        <button type="button" class="btn-primary" id="createSectionBtn" style="width:auto;">Create Section</button>
+        <button type="button" class="btn-secondary" id="cancelSectionBtn" style="width:auto;">Cancel</button>
+      </div>
+      <p class="form-status" id="newSectionStatus"></p>
+    </div>
+
+    <div class="custom-sections-grid" id="customSectionsGrid"></div>
+  `;
+
+  const grid = document.getElementById("customSectionsGrid");
+  if (!data || data.length === 0) {
+    grid.innerHTML = `<p style="color:var(--text-muted);padding:2rem 0;">No custom sections yet — click "+ New Section" to create your first one.</p>`;
+  } else {
+    grid.innerHTML = data.map(s => `
+      <div class="custom-section-card">
+        <div class="custom-section-card-top">
+          <h3>${esc(s.heading)}</h3>
+          <span class="custom-section-badge ${s.is_visible ? "" : "is-hidden"}">${s.is_visible ? "Visible" : "Hidden"}</span>
+        </div>
+        <p class="custom-section-meta">${s.custom_section_items?.[0]?.count || 0} item(s) · key: ${esc(s.section_key)}</p>
+        <div class="custom-section-card-actions">
+          <button type="button" class="btn-secondary" data-manage="${esc(s.id)}" style="width:auto;">Manage Items</button>
+          <button type="button" class="btn-secondary" data-rename="${esc(s.id)}" style="width:auto;">Rename</button>
+          <button type="button" class="btn-action danger" data-delete-section="${esc(s.id)}" style="width:auto;">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  const newBtn = document.getElementById("newSectionBtn");
+  const form = document.getElementById("newSectionForm");
+  newBtn.addEventListener("click", () => { form.style.display = form.style.display === "none" ? "block" : "none"; });
+  document.getElementById("cancelSectionBtn").addEventListener("click", () => { form.style.display = "none"; });
+
+  document.getElementById("createSectionBtn").addEventListener("click", async () => {
+    const headingInput = document.getElementById("newSectionHeading");
+    const heading = headingInput.value.trim();
+    const status = document.getElementById("newSectionStatus");
+    if (!heading) { status.textContent = "Please enter a heading."; return; }
+
+    status.textContent = "Creating…";
+    const sectionKey = "custom_" + slugify(heading) + "_" + Date.now().toString(36).slice(-4);
+    const isVisible = document.getElementById("newSectionVisible").checked;
+    const maxOrder = data.length ? Math.max(...data.map(s => s.sort_order || 0)) : -1;
+
+    const { data: created, error: insErr } = await supabaseClient
+      .from("custom_sections")
+      .insert({ section_key: sectionKey, heading, is_visible: isVisible, sort_order: maxOrder + 1 })
+      .select()
+      .single();
+    if (insErr) { status.textContent = ""; showToast("Error: " + insErr.message, "error"); return; }
+
+    // Also register it in page_sections so it shows up in the ordering panel.
+    const { data: psRows } = await supabaseClient.from("page_sections").select("sort_order").order("sort_order", { ascending: false }).limit(1);
+    const nextOrder = (psRows?.[0]?.sort_order ?? -1) + 1;
+    await supabaseClient.from("page_sections").insert({ section_key: sectionKey, label: heading, is_visible: isVisible, sort_order: nextOrder });
+
+    showToast(`"${heading}" section created.`);
+    logActivity("Created", "custom_sections", heading);
+    renderCustomSectionsTab();
+  });
+
+  grid.querySelectorAll("[data-manage]").forEach(btn => {
+    btn.addEventListener("click", () => renderCustomSectionItems(btn.dataset.manage, data.find(s => String(s.id) === btn.dataset.manage)));
+  });
+
+  grid.querySelectorAll("[data-rename]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const section = data.find(s => String(s.id) === btn.dataset.rename);
+      const newHeading = prompt("New heading for this section:", section.heading);
+      if (!newHeading || !newHeading.trim() || newHeading.trim() === section.heading) return;
+      const trimmed = newHeading.trim();
+      const { error: upErr } = await supabaseClient.from("custom_sections").update({ heading: trimmed }).eq("id", section.id);
+      if (upErr) { showToast("Error: " + upErr.message, "error"); return; }
+      await supabaseClient.from("page_sections").update({ label: trimmed }).eq("section_key", section.section_key);
+      showToast("Section renamed.");
+      renderCustomSectionsTab();
+    });
+  });
+
+  grid.querySelectorAll("[data-delete-section]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const section = data.find(s => String(s.id) === btn.dataset.deleteSection);
+      const ok = await showConfirm(`Delete "${section.heading}" and all its items? This can't be undone.`);
+      if (!ok) return;
+      await supabaseClient.from("custom_sections").delete().eq("id", section.id); // cascades to items
+      await supabaseClient.from("page_sections").delete().eq("section_key", section.section_key);
+      showToast("Section deleted.");
+      logActivity("Deleted", "custom_sections", section.heading);
+      renderCustomSectionsTab();
+    });
+  });
+}
+
+async function renderCustomSectionItems(sectionId, section) {
+  const pageTitle = document.getElementById("pageTitle");
+  pageTitle.textContent = `Custom Sections — ${section.heading}`;
+  const content = document.getElementById("tabContent");
+  content.innerHTML = renderSkeleton();
+
+  const { data: items, error } = await supabaseClient
+    .from("custom_section_items")
+    .select("*")
+    .eq("section_id", sectionId)
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    content.innerHTML = `<p style="color:var(--accent);">Error loading items: ${esc(error.message)}</p>`;
+    return;
+  }
+
+  content.innerHTML = `
+    <button type="button" class="btn-secondary" id="backToSectionsBtn" style="width:auto;margin-bottom:1.25rem;">← Back to Sections</button>
+    <p class="dash-subtitle">Cards shown in the "${esc(section.heading)}" section on the portfolio.</p>
+    <button type="button" class="btn-primary" id="newItemBtn" style="width:auto;margin-bottom:1.5rem;">+ Add Item</button>
+
+    <div class="new-section-form" id="newItemForm" style="display:none;">
+      <div class="form-group">
+        <label>Title</label>
+        <input type="text" id="itemTitle" maxlength="100" />
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="itemDescription" rows="3"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Image (optional)</label>
+        <input type="file" id="itemImage" accept="image/*" />
+      </div>
+      <div class="form-group">
+        <label>Link URL (optional)</label>
+        <input type="text" id="itemLink" placeholder="https://…" />
+      </div>
+      <label class="page-section-toggle" style="margin:0.75rem 0 1rem;">
+        <input type="checkbox" id="itemVisible" checked />
+        <span>Visible on site</span>
+      </label>
+      <div style="display:flex;gap:0.6rem;">
+        <button type="button" class="btn-primary" id="saveItemBtn" style="width:auto;">Save Item</button>
+        <button type="button" class="btn-secondary" id="cancelItemBtn" style="width:auto;">Cancel</button>
+      </div>
+      <p class="form-status" id="newItemStatus"></p>
+    </div>
+
+    <div class="page-sections-list" id="customItemsList"></div>
+  `;
+
+  document.getElementById("backToSectionsBtn").addEventListener("click", renderCustomSectionsTab);
+
+  const form = document.getElementById("newItemForm");
+  document.getElementById("newItemBtn").addEventListener("click", () => { form.style.display = form.style.display === "none" ? "block" : "none"; });
+  document.getElementById("cancelItemBtn").addEventListener("click", () => { form.style.display = "none"; });
+
+  document.getElementById("saveItemBtn").addEventListener("click", async () => {
+    const status = document.getElementById("newItemStatus");
+    const title = document.getElementById("itemTitle").value.trim();
+    if (!title) { status.textContent = "Please enter a title."; return; }
+    status.textContent = "Saving…";
+
+    try {
+      const fileInput = document.getElementById("itemImage");
+      let imageUrl = null;
+      if (fileInput.files[0]) imageUrl = await uploadFile(fileInput.files[0], "custom-sections");
+
+      const linkRaw = document.getElementById("itemLink").value.trim();
+      if (linkRaw && !/^https?:\/\//i.test(linkRaw)) throw new Error("Link URL must start with http:// or https://");
+
+      const maxOrder = items.length ? Math.max(...items.map(i => i.sort_order || 0)) : -1;
+      const { error: insErr } = await supabaseClient.from("custom_section_items").insert({
+        section_id: sectionId,
+        title,
+        description: document.getElementById("itemDescription").value.trim() || null,
+        image_url: imageUrl,
+        link_url: linkRaw || null,
+        is_visible: document.getElementById("itemVisible").checked,
+        sort_order: maxOrder + 1,
+      });
+      if (insErr) throw new Error(insErr.message);
+
+      showToast("Item added.");
+      logActivity("Created", "custom_section_items", title);
+      renderCustomSectionItems(sectionId, section);
+    } catch (err) {
+      status.textContent = "";
+      showToast("Error: " + err.message, "error");
+    }
+  });
+
+  const list = document.getElementById("customItemsList");
+  if (!items || items.length === 0) {
+    list.innerHTML = `<p style="color:var(--text-muted);padding:1.5rem 0;">No items yet — click "+ Add Item" to create the first card.</p>`;
+    return;
+  }
+
+  function renderList() {
+    list.innerHTML = items.map(it => `
+      <div class="page-section-row custom-item-row" draggable="true" data-id="${esc(it.id)}">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        ${it.image_url ? `<img src="${esc(it.image_url)}" class="custom-item-thumb" alt="" />` : ""}
+        <span class="page-section-label">${esc(it.title)}</span>
+        <label class="page-section-toggle">
+          <input type="checkbox" data-visible-id="${esc(it.id)}" ${it.is_visible ? "checked" : ""} />
+          <span>Visible</span>
+        </label>
+        <button type="button" class="btn-action danger" data-delete-item="${esc(it.id)}" style="width:auto;">Delete</button>
+      </div>
+    `).join("");
+
+    list.querySelectorAll("[data-visible-id]").forEach(cb => {
+      cb.addEventListener("change", async () => {
+        const { error: upErr } = await supabaseClient.from("custom_section_items").update({ is_visible: cb.checked }).eq("id", cb.dataset.visibleId);
+        if (upErr) { showToast("Error: " + upErr.message, "error"); return; }
+        showToast("Updated.");
+      });
+    });
+
+    list.querySelectorAll("[data-delete-item]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const ok = await showConfirm("Delete this item?");
+        if (!ok) return;
+        await supabaseClient.from("custom_section_items").delete().eq("id", btn.dataset.deleteItem);
+        showToast("Item deleted.");
+        renderCustomSectionItems(sectionId, section);
+      });
+    });
+
+    let dragSrcId = null;
+    list.querySelectorAll(".custom-item-row").forEach(row => {
+      row.addEventListener("dragstart", () => { dragSrcId = row.dataset.id; row.classList.add("dragging"); });
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging");
+        list.querySelectorAll(".custom-item-row").forEach(r => r.classList.remove("drag-over"));
+      });
+      row.addEventListener("dragover", (e) => { e.preventDefault(); row.classList.add("drag-over"); });
+      row.addEventListener("dragleave", () => row.classList.remove("drag-over"));
+      row.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        row.classList.remove("drag-over");
+        const targetId = row.dataset.id;
+        if (!dragSrcId || dragSrcId === targetId) return;
+        const fromIndex = items.findIndex(i => String(i.id) === dragSrcId);
+        const toIndex = items.findIndex(i => String(i.id) === targetId);
+        if (fromIndex === -1 || toIndex === -1) return;
+        const [moved] = items.splice(fromIndex, 1);
+        items.splice(toIndex, 0, moved);
+        items.forEach((i, idx) => { i.sort_order = idx; });
+        renderList();
+        const results = await Promise.all(items.map((i, idx) => supabaseClient.from("custom_section_items").update({ sort_order: idx }).eq("id", i.id)));
+        const failed = results.find(r => r.error);
+        if (failed) showToast("Error saving order: " + failed.error.message, "error");
+        else showToast("Order updated.");
+      });
+    });
+  }
+
+  renderList();
+}
 
 function setupFaviconCropper() {
   const frameSize = 220;
@@ -1191,6 +1608,7 @@ async function renderTab(tabName) {
   if (tabName === "dashboard") { searchBox.style.display = "none"; renderDashboard(); return; }
   if (tabName === "analytics") { searchBox.style.display = "none"; renderAnalyticsTab(); return; }
   if (tabName === "portfolio_builder") { searchBox.style.display = "none"; renderPortfolioBuilderTab(); return; }
+  if (tabName === "custom_sections") { searchBox.style.display = "none"; renderCustomSectionsTab(); return; }
   if (tabName === "profile") { searchBox.style.display = "none"; renderProfileTab(); return; }
   if (tabName === "skill_categories") { searchBox.style.display = "none"; renderSkillCategoriesTab(); return; }
   if (tabName === "settings") { searchBox.style.display = "none"; renderSettingsTab(); return; }
