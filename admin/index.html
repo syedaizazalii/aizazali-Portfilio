@@ -4,12 +4,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Admin Dashboard — Aizaz Ali Portfolio</title>
-<link rel="icon" href="../favicon.png">
-<link rel="apple-touch-icon" href="../favicon.png">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../css/style.css" />
-<link rel="stylesheet" href="css/admin.css" />
+<link rel="stylesheet" href="/css/style.css" />
+<link rel="stylesheet" href="/admin/css/admin.css" />
 </head>
 <body>
 <div class="stars-bg" id="starsBg">
@@ -130,7 +130,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="../js/supabaseClient.js"></script>
+<script src="/js/supabaseClient.js"></script>
 <script>
   // Dynamic favicon — same custom icon set from the Settings tab applies here too.
   supabaseClient.from("settings").select("value").eq("key", "favicon_url").maybeSingle()
@@ -141,6 +141,6 @@
     })
     .catch(() => { /* ignore — static favicon files still apply */ });
 </script>
-<script src="js/admin.js"></script>
+<script src="/admin/js/admin.js"></script>
 </body>
 </html>
