@@ -12,9 +12,13 @@
 <!-- Canonical URL — tells Google this is the single true version of the page -->
 <link rel="canonical" href="https://syedaizazali.netlify.app/" />
 
-<!-- Favicon — one single image, used everywhere (browser tab, bookmarks, phone home screen) -->
-<link rel="icon" href="favicon.png" />
-<link rel="apple-touch-icon" href="favicon.png" />
+<!-- Favicon — served via /api/favicon, a serverless function that always
+     returns the CURRENT icon (from Supabase) at this one fixed URL. This
+     stays stable for Google's crawler even though the underlying image
+     can change anytime from the admin panel. Falls back to favicon.png
+     automatically if nothing is set. -->
+<link rel="icon" href="/api/favicon" />
+<link rel="apple-touch-icon" href="/api/favicon" />
 
 <!-- Open Graph / social share preview -->
 <meta property="og:type" content="website" />
