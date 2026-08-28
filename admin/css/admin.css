@@ -861,11 +861,12 @@ tr.dragging { opacity: 0.4; }
 .favicon-crop-area { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start; }
 .favicon-crop-frame {
   width: 220px; height: 220px;
-  border-radius: 12px;
+  border-radius: 50%;
   overflow: hidden;
   position: relative;
   background: var(--surface-2);
-  border: 1px solid var(--border-strong);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--surface-2);
   cursor: grab;
   touch-action: none;
 }

@@ -2053,7 +2053,6 @@ const PROFILE_FIELDS = [
   { name: "hero_photo_url", label: "Hero Photo", type: "file" },
   { name: "about_heading", label: "About Heading", type: "text" },
   { name: "about_paragraphs", label: "About Text (one paragraph per line)", type: "textarea" },
-  { name: "about_photo_url", label: "About Section Photo", type: "file" },
   { name: "resume_url", label: "Resume (PDF)", type: "file", accept: "application/pdf" },
 ];
 
@@ -2068,7 +2067,7 @@ async function renderProfileTab() {
 
   const byName = (names) => PROFILE_FIELDS.filter(f => names.includes(f.name));
   const heroFields = byName(["full_name", "professional_title", "tagline", "hero_heading", "hero_subheading", "hero_photo_url"]);
-  const aboutFields = byName(["about_heading", "about_paragraphs", "about_photo_url"]);
+  const aboutFields = byName(["about_heading", "about_paragraphs"]);
   const resumeFields = byName(["resume_url"]);
 
   const content = document.getElementById("tabContent");

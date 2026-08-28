@@ -145,12 +145,7 @@
   <p class="mono-tag section-eyebrow reveal">// about</p>
   <h2 class="section-title center reveal">About Me</h2>
   <div class="divider reveal"></div>
-  <div class="about-grid">
-    <div class="about-photo-wrap">
-      <div class="about-photo-frame">
-        <img id="aboutPhoto" src="" alt="Syed Aizaz Ali" class="about-photo" loading="lazy" />
-      </div>
-    </div>
+  <div class="about-grid about-grid--text-only">
     <div class="about-text">
       <h3 id="aboutHeading">QA + AI Automation + Full-Stack</h3>
       <div id="aboutParagraphs"></div>
@@ -277,27 +272,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabaseClient.js"></script>
-<script>
-  supabaseClient.from("settings").select("value").eq("key", "favicon_url").maybeSingle()
-    .then(({ data, error }) => {
-      if (error) { console.warn("favicon_url fetch failed:", error); return; }
-      if (data?.value) {
-        // Cache-bust so the browser treats this as a new resource every time it changes
-        const bustedUrl = data.value + (data.value.includes("?") ? "&" : "?") + "v=" + Date.now();
-        // Just changing .href on existing <link> tags often does NOT repaint the tab icon
-        // in Chrome/Edge (favicons are cached aggressively per-origin). Removing and
-        // re-inserting fresh <link> elements is the reliable cross-browser fix.
-        document.querySelectorAll('link[rel~="icon"], link[rel="apple-touch-icon"]').forEach(l => l.remove());
-        ["icon", "apple-touch-icon"].forEach((rel) => {
-          const link = document.createElement("link");
-          link.rel = rel;
-          link.href = bustedUrl;
-          document.head.appendChild(link);
-        });
-      }
-    })
-    .catch((err) => { console.warn("favicon_url fetch error:", err); /* ignore — static favicon files still apply */ });
-</script>
 <script src="js/app.js"></script>
 </body>
 </html>
