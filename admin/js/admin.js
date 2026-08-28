@@ -2053,9 +2053,7 @@ const PROFILE_FIELDS = [
   { name: "hero_photo_url", label: "Hero Photo", type: "file" },
   { name: "about_heading", label: "About Heading", type: "text" },
   { name: "about_paragraphs", label: "About Text (one paragraph per line)", type: "textarea" },
-  { name: "about_bg_image_url", label: "About Section Background Image (shown faded behind the text)", type: "file" },
-  { name: "about_bg_opacity", label: "Background Visibility % (0 = invisible, 100 = fully visible)", type: "number", min: 0, max: 100 },
-  { name: "about_bg_blur", label: "Background Blur (px — 0 = sharp, higher = more blurred)", type: "number", min: 0, max: 20 },
+  { name: "about_photo_url", label: "About Section Photo", type: "file" },
   { name: "resume_url", label: "Resume (PDF)", type: "file", accept: "application/pdf" },
 ];
 
@@ -2070,7 +2068,7 @@ async function renderProfileTab() {
 
   const byName = (names) => PROFILE_FIELDS.filter(f => names.includes(f.name));
   const heroFields = byName(["full_name", "professional_title", "tagline", "hero_heading", "hero_subheading", "hero_photo_url"]);
-  const aboutFields = byName(["about_heading", "about_paragraphs", "about_bg_image_url", "about_bg_opacity", "about_bg_blur"]);
+  const aboutFields = byName(["about_heading", "about_paragraphs", "about_photo_url"]);
   const resumeFields = byName(["resume_url"]);
 
   const content = document.getElementById("tabContent");
