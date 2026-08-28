@@ -298,7 +298,8 @@ async function loadProfile() {
   setupHeroSlideshow(data.hero_photo_url, data.about_photo_url);
 
   if (data.about_heading) document.getElementById("aboutHeading").textContent = data.about_heading;
-  if (data.about_photo_url) document.getElementById("aboutPhoto").src = data.about_photo_url;
+  const aboutPhotoEl = document.getElementById("aboutPhoto");
+  if (aboutPhotoEl && data.about_photo_url) aboutPhotoEl.src = data.about_photo_url;
 
   if (data.about_paragraphs) {
     const paras = data.about_paragraphs.split("\n").filter(p => p.trim());
@@ -461,16 +462,24 @@ async function loadCertifications() {
   const el = document.getElementById("certsGrid");
   const { data, error } = await supabaseClient.from("certifications").select("*").order("issue_date", { ascending: false });
   if (error || !data || data.length === 0) { el.innerHTML = `<p class="loading-text">No certifications added yet.</p>`; return; }
-  el.innerHTML = data.map((c, i) => `
-    <div class="card reveal" style="transition-delay:${i * 80}ms">
+  el.innerHTML = data.map((c, i) => {
+    // Admin's "Verification URL" field may be saved as verification_url or credential_url depending on schema — support both
+    const link = c.verification_url || c.credential_url || c.credential_link || "";
+    const openUrl = link || c.image_url || "";
+    const wrapStart = openUrl ? `<a href="${esc(openUrl)}" target="_blank" rel="noopener" class="card cert-card reveal"` : `<div class="card cert-card reveal"`;
+    const wrapEnd = openUrl ? `</a>` : `</div>`;
+    return `
+    ${wrapStart} style="transition-delay:${i * 80}ms">
       ${c.image_url ? `<img src="${esc(c.image_url)}" alt="${esc(c.title)}" loading="lazy" />` : ""}
       <div class="card-body">
         <h3>${esc(c.title)}</h3>
         <p>${esc(c.issued_by)} · ${formatDate(c.issue_date)}</p>
-        ${c.credential_url ? `<div class="card-links"><a href="${esc(c.credential_url)}" target="_blank" rel="noopener">View Credential →</a></div>` : ""}
+        ${c.credential_id ? `<p class="cert-id">ID: ${esc(c.credential_id)}</p>` : ""}
+        ${link ? `<div class="card-links"><span>View Credential →</span></div>` : (c.image_url ? `<div class="card-links"><span>View Certificate →</span></div>` : "")}
       </div>
-    </div>
-  `).join("");
+    ${wrapEnd}
+  `;
+  }).join("");
   observeReveals(el);
 }
 
