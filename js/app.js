@@ -248,6 +248,23 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+// Reads a single row from the "settings" table (used by the admin's
+// Portfolio Builder for favicon, accent color, testimonials/skills style, etc).
+async function getSetting(key) {
+  try {
+    const { data } = await supabaseClient.from("settings").select("value").eq("key", key).maybeSingle();
+    return data?.value || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function splitSkillsList(str) {
+  return (str || "").split(",").map(s => s.trim()).filter(Boolean);
+}
+
+const SKILL_ICON_FALLBACK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18l-6-6 6-6M15 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
 // ==========================================
 // HERO PHOTO SLIDESHOW (2 photos, crossfade + dots)
 // ==========================================
@@ -327,23 +344,60 @@ async function loadProfile() {
 // ==========================================
 async function loadSkills() {
   const el = document.getElementById("skillsGrid");
-  const { data, error } = await supabaseClient.from("skill_categories").select("*").order("sort_order");
+  const [catRes, skillsStyle] = await Promise.all([
+    supabaseClient.from("skill_categories").select("*").order("sort_order"),
+    getSetting("skills_style"),
+  ]);
+  const { data, error } = catRes;
 
   if (error || !data || data.length === 0) {
     el.innerHTML = `<p class="loading-text">No skills added yet.</p>`;
     return;
   }
 
-  el.innerHTML = data.map((s, i) => `
-    <div class="skill-card reveal" style="transition-delay:${i * 80}ms">
-      <div class="skill-card-head">
+  const style = skillsStyle || "bars";
+  el.className = "skills-grid style-" + style;
+
+  if (style === "rings") {
+    el.innerHTML = data.map((s, i) => `
+      <div class="skill-card skill-ring-card reveal" style="transition-delay:${i * 80}ms">
+        <div class="skill-ring" style="--pct:${s.proficiency || 0}">
+          <span class="skill-ring-inner">${s.proficiency || 0}%</span>
+        </div>
+        <h4>${esc(s.name)}</h4>
+        <p>${esc(s.skills_list)}</p>
+      </div>
+    `).join("");
+  } else if (style === "tags") {
+    el.innerHTML = data.map((s, i) => `
+      <div class="skill-card skill-tag-card reveal" style="transition-delay:${i * 80}ms">
+        <h4>${esc(s.name)}</h4>
+        <div class="skill-tag-row">
+          ${splitSkillsList(s.skills_list).map(t => `<span class="skill-tag">${esc(t)}</span>`).join("")}
+        </div>
+      </div>
+    `).join("");
+  } else if (style === "icons") {
+    el.innerHTML = data.map((s, i) => `
+      <div class="skill-card skill-icon-card reveal" style="transition-delay:${i * 80}ms">
+        <div class="skill-icon-wrap">${s.icon_url ? `<img src="${esc(s.icon_url)}" alt="${esc(s.name)}" loading="lazy" />` : SKILL_ICON_FALLBACK}</div>
         <h4>${esc(s.name)}</h4>
         <span class="skill-percent-inline">${s.proficiency || 0}%</span>
       </div>
-      <div class="skill-bar"><div class="skill-bar-fill" style="width:${s.proficiency || 0}%"></div></div>
-      <p>${esc(s.skills_list)}</p>
-    </div>
-  `).join("");
+    `).join("");
+  } else {
+    // "bars" — original default look
+    el.innerHTML = data.map((s, i) => `
+      <div class="skill-card reveal" style="transition-delay:${i * 80}ms">
+        <div class="skill-card-head">
+          <h4>${esc(s.name)}</h4>
+          <span class="skill-percent-inline">${s.proficiency || 0}%</span>
+        </div>
+        <div class="skill-bar"><div class="skill-bar-fill" style="width:${s.proficiency || 0}%"></div></div>
+        <p>${esc(s.skills_list)}</p>
+      </div>
+    `).join("");
+  }
   observeReveals(el);
 }
 
@@ -488,15 +542,24 @@ async function loadCertifications() {
 // ==========================================
 async function loadTestimonials() {
   const el = document.getElementById("testimonialsGrid");
-  const { data, error } = await supabaseClient.from("testimonials").select("*").order("created_at", { ascending: false });
+  const [{ data, error }, tStyle, tAccent] = await Promise.all([
+    supabaseClient.from("testimonials").select("*").order("created_at", { ascending: false }),
+    getSetting("testimonials_style"),
+    getSetting("testimonials_accent_color"),
+  ]);
   if (error || !data || data.length === 0) { el.innerHTML = `<p class="loading-text">No testimonials yet.</p>`; return; }
+
+  const style = tStyle || "grid";
+  el.className = "testimonials-list style-" + style;
+  el.style.setProperty("--t-accent", tAccent || "var(--accent)");
+
   const stars = (n) => {
     const filled = Math.max(0, Math.min(5, n || 5));
     return `<span class="testimonial-stars">${"★".repeat(filled)}${"☆".repeat(5 - filled)}</span>`;
   };
 
-  el.innerHTML = data.map((t, i) => `
-    <div class="testimonial-card reveal" style="transition-delay:${i * 80}ms">
+  const cardHTML = (t, i, extraClass = "") => `
+    <div class="testimonial-card ${extraClass} reveal" style="transition-delay:${i * 80}ms">
       <div class="testimonial-content">
         ${stars(t.rating)}
         <p class="testimonial-quote">"${esc(t.message)}"</p>
@@ -509,8 +572,97 @@ async function loadTestimonials() {
         </div>
       ` : ""}
     </div>
-  `).join("");
+  `;
+
+  if (style === "minimal") {
+    el.innerHTML = data.map((t, i) => `
+      <div class="testimonial-minimal reveal" style="transition-delay:${i * 80}ms">
+        <span class="testimonial-minimal-mark">"</span>
+        <p class="testimonial-quote">${esc(t.message)}</p>
+        ${t.image_url ? `<img src="${esc(t.image_url)}" alt="${esc(t.name)}" class="testimonial-minimal-photo" loading="lazy" />` : ""}
+        <h3>${esc(t.name)}</h3>
+        <p class="testimonial-role">${esc(t.designation)}</p>
+      </div>
+    `).join("");
+  } else if (style === "spotlight") {
+    el.innerHTML = data.map((t, i) => `
+      <div class="testimonial-spotlight reveal" style="transition-delay:${i * 80}ms">
+        ${t.image_url ? `<img src="${esc(t.image_url)}" alt="${esc(t.name)}" class="testimonial-spotlight-photo" loading="lazy" />` : `<div class="testimonial-spotlight-photo testimonial-spotlight-placeholder"></div>`}
+        <div class="testimonial-spotlight-body">
+          ${stars(t.rating)}
+          <p class="testimonial-quote">"${esc(t.message)}"</p>
+          <h3>${esc(t.name)}</h3>
+          <p class="testimonial-role">${esc(t.designation)}</p>
+        </div>
+      </div>
+    `).join("");
+  } else if (style === "carousel") {
+    el.innerHTML = `
+      <div class="testimonial-carousel-wrap">
+        <button type="button" class="testimonial-arrow" id="testimonialPrev" aria-label="Previous">‹</button>
+        <div class="testimonial-carousel-track" id="testimonialTrack">
+          ${data.map((t, i) => cardHTML(t, i, "testimonial-slide" + (i === 0 ? " is-active" : ""))).join("")}
+        </div>
+        <button type="button" class="testimonial-arrow" id="testimonialNext" aria-label="Next">›</button>
+      </div>
+      <div class="testimonial-dots" id="testimonialDots">
+        ${data.map((_, i) => `<span class="${i === 0 ? "is-active" : ""}"></span>`).join("")}
+      </div>
+    `;
+    setupTestimonialCarousel(data.length);
+  } else if (style === "masonry") {
+    el.innerHTML = `<div class="testimonial-masonry">${data.map((t, i) => cardHTML(t, i, "testimonial-masonry-item")).join("")}</div>`;
+  } else if (style === "bubble") {
+    el.innerHTML = data.map((t, i) => `
+      <div class="testimonial-bubble-row reveal" style="transition-delay:${i * 80}ms">
+        ${t.image_url ? `<img src="${esc(t.image_url)}" alt="${esc(t.name)}" class="testimonial-bubble-avatar" loading="lazy" />` : `<div class="testimonial-bubble-avatar testimonial-bubble-placeholder"></div>`}
+        <div class="testimonial-bubble">
+          <p class="testimonial-quote">${esc(t.message)}</p>
+          <h3>${esc(t.name)} <span class="testimonial-role">— ${esc(t.designation)}</span></h3>
+        </div>
+      </div>
+    `).join("");
+  } else if (style === "ticker") {
+    const loopData = data.length > 1 ? [...data, ...data] : data;
+    el.innerHTML = `<div class="testimonial-ticker-track">${loopData.map((t, i) => cardHTML(t, i, "testimonial-ticker-item")).join("")}</div>`;
+  } else if (style === "stacked") {
+    el.innerHTML = `
+      <div class="testimonial-stack-wrap" id="testimonialStackWrap">
+        ${data.map((t, i) => cardHTML(t, i, "testimonial-stack-item" + (i === 0 ? " is-active" : ""))).join("")}
+      </div>
+      ${data.length > 1 ? `<button type="button" class="btn btn-outline testimonial-stack-next" id="testimonialStackNext">Next testimonial →</button>` : ""}
+    `;
+    setupTestimonialStack(data.length);
+  } else {
+    // "grid" — original default look
+    el.innerHTML = data.map((t, i) => cardHTML(t, i)).join("");
+  }
+
   observeReveals(el);
+}
+
+function setupTestimonialCarousel(count) {
+  if (count <= 1) return;
+  let idx = 0;
+  const slides = document.querySelectorAll("#testimonialTrack .testimonial-slide");
+  const dots = document.querySelectorAll("#testimonialDots span");
+  function show(n) {
+    idx = (n + count) % count;
+    slides.forEach((s, i) => s.classList.toggle("is-active", i === idx));
+    dots.forEach((d, i) => d.classList.toggle("is-active", i === idx));
+  }
+  document.getElementById("testimonialPrev")?.addEventListener("click", () => show(idx - 1));
+  document.getElementById("testimonialNext")?.addEventListener("click", () => show(idx + 1));
+}
+
+function setupTestimonialStack(count) {
+  if (count <= 1) return;
+  let idx = 0;
+  const items = document.querySelectorAll("#testimonialStackWrap .testimonial-stack-item");
+  document.getElementById("testimonialStackNext")?.addEventListener("click", () => {
+    idx = (idx + 1) % count;
+    items.forEach((it, i) => it.classList.toggle("is-active", i === idx));
+  });
 }
 
 // ==========================================
