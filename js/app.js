@@ -736,6 +736,7 @@ document.getElementById("contactForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.target;
   const statusEl = document.getElementById("formStatus");
+  const submitBtn = form.querySelector('button[type="submit"]');
 
   if (form.website.value.trim() !== "") { form.reset(); statusEl.textContent = "Message sent — thank you!"; return; }
 
@@ -743,8 +744,10 @@ document.getElementById("contactForm").addEventListener("submit", async (e) => {
   const email = form.email.value.trim();
   const message = form.message.value.trim();
   statusEl.textContent = "Sending…";
+  submitBtn.disabled = true; // prevent double-click / duplicate submissions
 
   const { error } = await supabaseClient.from("contact_messages").insert([{ name, email, message }]);
+  submitBtn.disabled = false;
   if (error) { statusEl.textContent = "Something went wrong. Please try again."; console.error(error); return; }
   statusEl.textContent = "Message sent — thank you! I'll get back to you soon.";
   form.reset();
